@@ -1,0 +1,12 @@
+'use strict';
+const products = [
+  {id:'headphones',name:'Studio Headphones',category:'Tech',price:89,color:'#e7dbed',summary:'A quieter kind of everyday.',description:'An illustrative pair of wireless over-ear headphones, with soft cushions and a minimal finish. This sample shows how a product detail view will look.',isNew:true},
+  {id:'lamp',name:'Arc Table Lamp',category:'Home',price:64,color:'#e8decf',summary:'A warm glow for your corner.',description:'A sculptural table lamp with a warm brass-inspired finish. A sample piece for the spaces where you read, work, and unwind.',isNew:true},
+  {id:'backpack',name:'Everyday Backpack',category:'Accessories',price:72,color:'#d7e2da',summary:'Room for wherever you’re going.',description:'An understated sage backpack, illustrated with everyday organization in mind. This is a sample listing rather than a product available for sale.',isNew:true},
+  {id:'speaker',name:'Pocket Speaker',category:'Tech',price:49,color:'#d5dfeb',summary:'Little speaker. Good company.',description:'A compact, portable speaker concept in a soft blue finish. Explore this sample product and add it to the demo cart.',isNew:true},
+  {id:'watch',name:'Daylight Watch',category:'Accessories',price:115,color:'#e6ddd5',summary:'Make time for the little things.',description:'A simple watch concept with a warm neutral strap and a clean, easy-to-read face. All details and pricing are illustrative.',isNew:true},
+  {id:'bottle',name:'Daily Water Bottle',category:'Lifestyle',price:28,color:'#e8ddce',summary:'A small everyday essential.',description:'A reusable bottle concept in a soft sand finish. A sample everyday accessory for demonstrating the storefront.',isNew:true},
+  {id:'camera',name:'Weekend Camera',category:'Tech',price:189,color:'#d9dfdf',summary:'Keep the moments that matter.',description:'A retro-inspired camera concept in a muted green finish. This sample listing is here to help you explore the product browsing experience.',isNew:false},
+  {id:'sneakers',name:'Cloud Sneakers',category:'Lifestyle',price:95,color:'#dfdcec',summary:'A lighter step, every day.',description:'An illustrated pair of casual sneakers with soft lavender accents. Sample colors, details, and price are for demonstration only.',isNew:false}
+];
+function findProducts(query,category){const term=query.trim().toLowerCase();return products.filter(product=>(category==='All'||product.category===category)&&`${product.name} ${product.category} ${product.summary}`.toLowerCase().includes(term));}
