@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once dirname(__DIR__).'/src/Commerce.php';
 require_once dirname(__DIR__).'/src/GitHubStore.php';
+require_once dirname(__DIR__).'/src/Hosting.php';
 
 ini_set('display_errors','0');
 header('Content-Type: application/json; charset=utf-8');
@@ -12,8 +13,11 @@ try {
     $portal = getenv('LK_PORTAL') ?: 'customer';
     if (!in_array($portal,['customer','seller'],true)) throw new RuntimeException('Invalid portal configuration.');
     $host = strtolower(parse_url('http://'.($_SERVER['HTTP_HOST'] ?? ''),PHP_URL_HOST) ?: '');
-    $allowed = array_filter(explode(',',getenv('LK_ALLOWED_HOSTS') ?: 'localhost,127.0.0.1'));
+    $allowed = array_map('strtolower',array_filter(array_map('trim',explode(',',getenv('LK_ALLOWED_HOSTS') ?: (getenv('RENDER_EXTERNAL_HOSTNAME') ?: 'localhost,127.0.0.1')))));
     if (!in_array($host,$allowed,true)) throw new ApiFailure('This server hostname is not configured.',403);
+    $publicUrl = getenv($portal==='seller'?'LK_SELLER_URL':'LK_CUSTOMER_URL') ?: (getenv('RENDER_EXTERNAL_URL') ?: '');
+    $secure = $publicUrl!=='' ? parse_url(storeOrigin($publicUrl),PHP_URL_SCHEME)==='https' : (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off');
+    $expectedOrigin = storeOrigin($publicUrl ?: (($secure?'https':'http').'://'.($_SERVER['HTTP_HOST'] ?? '')));
     if (is_file(dirname(__DIR__).'/local.php')) require dirname(__DIR__).'/local.php';
     $runtime = getenv('LK_STORAGE_DIR') ?: dirname(__DIR__).'/storage';
     $files = getenv('LK_STORAGE_DRIVER')==='github'
@@ -23,7 +27,7 @@ try {
     ini_set('session.use_strict_mode','1'); ini_set('session.use_only_cookies','1');
     session_name('lk_'.$portal.'_session');
     session_save_path($files->root.'/sessions');
-    session_set_cookie_params(['lifetime'=>0,'path'=>'/','secure'=>!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off','httponly'=>true,'samesite'=>'Lax']);
+    session_set_cookie_params(['lifetime'=>0,'path'=>'/','secure'=>$secure,'httponly'=>true,'samesite'=>'Lax']);
     if (!session_start()) throw new StorageFailure('A server session could not be started.');
     $_SESSION['csrf'] ??= bin2hex(random_bytes(32));
     $identity = $_SESSION['identity'] ?? null;
@@ -40,8 +44,11 @@ try {
     $input=[];
     if ($method!=='GET') {
         $origin=$_SERVER['HTTP_ORIGIN'] ?? '';
-        if ($origin !== '' && strtolower(parse_url($origin,PHP_URL_HOST) ?: '')!==$host) throw new ApiFailure('Cross-origin requests are not allowed.',403);
-        if ($origin !== '' && (parse_url($origin,PHP_URL_PORT) ?: (parse_url($origin,PHP_URL_SCHEME)==='https'?443:80)) !== (int)($_SERVER['SERVER_PORT'] ?? 80)) throw new ApiFailure('Cross-origin requests are not allowed.',403);
+        if ($origin !== '') {
+            try { $originMatches=storeOrigin($origin)===$expectedOrigin; }
+            catch (RuntimeException) { $originMatches=false; }
+            if (!$originMatches) throw new ApiFailure('Cross-origin requests are not allowed.',403);
+        }
         if (!hash_equals($_SESSION['csrf'],$_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) throw new ApiFailure('Refresh the page and try again.',403);
         if (!str_starts_with(strtolower($_SERVER['CONTENT_TYPE'] ?? ''),'application/json')) throw new ApiFailure('Send JSON request data.',415);
         if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0)>2000000) throw new ApiFailure('The request is too large.',413);
@@ -67,7 +74,7 @@ try {
             $catalog=$service->catalog();
             return ['portal'=>$portal,'user'=>$user?$service->publicUser($user):null,'stores'=>$catalog['stores'],'products'=>$catalog['products'],'sellerStore'=>$user && $portal==='seller'?$service->ownStore($user,$user['id']):null,'cart'=>$user && $portal==='customer'?$service->cart($user):new stdClass(),'orders'=>[]];
         });
-        $data['csrf']=$_SESSION['csrf'];$data['customerUrl']=getenv('LK_CUSTOMER_URL') ?: 'http://127.0.0.1:8080/';$data['sellerUrl']=getenv('LK_SELLER_URL') ?: 'http://127.0.0.1:8081/';respond($data);
+        $data['csrf']=$_SESSION['csrf'];$data['customerUrl']=storePublicUrl('customer');$data['sellerUrl']=storePublicUrl('seller');respond($data);
     }
     if (in_array($path,['/auth/register','/auth/login'],true) && $method==='POST') {
         if (($input['role'] ?? $portal)!==$portal) throw new ApiFailure('Use the correct website for this account type.',403);

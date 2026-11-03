@@ -40,6 +40,8 @@ Create a new account through the correct website. There are no predefined logins
 
 ## Hosting online
 
+The ready-to-deploy Render option is documented in [DEPLOYMENT.md](DEPLOYMENT.md). It creates separate customer and seller PHP websites with the existing private GitHub file storage. The GitHub Pages URLs remain static previews; use the new hosting URLs after deployment.
+
 GitHub Pages can serve the frontend files but cannot execute the PHP API or write registration files. The public Pages URLs therefore show a connection message until an API is hosted. Do not put a GitHub token in JavaScript to bypass this requirement.
 
 For online registration, deploy the PHP API and frontend to PHP hosting, with separate customer and seller virtual hosts. Both virtual hosts use the same private GitHub data repository. Route `/api/*` to `server/public/index.php`, preserving the URI. The local `server/router.php` demonstrates this setup and serves only allowlisted frontend pages/assets; it blocks access to private files, source code, and the other website's files.

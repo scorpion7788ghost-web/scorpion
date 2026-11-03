@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 $path=rawurldecode(parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH) ?: '/');
+if ($path==='/healthz') { header('Content-Type: application/json'); header('Cache-Control: no-store'); echo '{"status":"ok"}'; return true; }
 if ($path==='/api' || str_starts_with($path,'/api/')) { require __DIR__.'/public/index.php'; return true; }
 $portal=getenv('LK_PORTAL') ?: 'customer';
 $root=realpath(dirname(__DIR__).($portal==='seller'?'/seller-site':''));

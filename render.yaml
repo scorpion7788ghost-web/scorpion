@@ -1,0 +1,60 @@
+# Two separate websites; real account records go to the private GitHub repository.
+# Free plans are selected explicitly. No paid disks or databases are provisioned.
+services:
+  - type: web
+    name: lk-tech-customer
+    runtime: docker
+    repo: https://github.com/scorpion7788ghost-web/scorpion
+    branch: master
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeployTrigger: "off"
+    healthCheckPath: /healthz
+    envVars:
+      - key: LK_PORTAL
+        value: customer
+      - key: LK_STORAGE_DRIVER
+        value: github
+      - key: LK_GITHUB_REPOSITORY
+        value: scorpion7788ghost-web/lk-tech-store-data
+      - key: LK_GITHUB_BRANCH
+        value: main
+      - key: LK_GITHUB_TOKEN
+        sync: false
+      - key: LK_CUSTOMER_URL
+        fromService:
+          type: web
+          name: lk-tech-customer
+          envVarKey: RENDER_EXTERNAL_URL
+  - type: web
+    name: lk-tech-seller
+    runtime: docker
+    repo: https://github.com/scorpion7788ghost-web/scorpion
+    branch: master
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeployTrigger: "off"
+    healthCheckPath: /healthz
+    envVars:
+      - key: LK_PORTAL
+        value: seller
+      - key: LK_STORAGE_DRIVER
+        value: github
+      - key: LK_GITHUB_REPOSITORY
+        value: scorpion7788ghost-web/lk-tech-store-data
+      - key: LK_GITHUB_BRANCH
+        value: main
+      - key: LK_GITHUB_TOKEN
+        sync: false
+      - key: LK_CUSTOMER_URL
+        fromService:
+          type: web
+          name: lk-tech-customer
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: LK_SELLER_URL
+        fromService:
+          type: web
+          name: lk-tech-seller
+          envVarKey: RENDER_EXTERNAL_URL

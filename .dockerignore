@@ -1,0 +1,18 @@
+# Deny everything, then include only deployment inputs.
+**
+!/*.html
+!assets/
+!assets/**
+!seller-site/
+!seller-site/*.html
+!seller-site/assets/
+!seller-site/assets/**
+!server/
+!server/src/
+!server/src/**
+!server/public/
+!server/public/**
+!server/router.php
+!deploy/
+!deploy/**
+!Dockerfile

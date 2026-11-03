@@ -8,3 +8,7 @@ exclude:
   - server
   - start-sites.ps1
   - stop-sites.ps1
+  - deploy
+  - Dockerfile
+  - render.yaml
+  - DEPLOYMENT.md
