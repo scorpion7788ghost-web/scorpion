@@ -10,3 +10,23 @@ const products = [
   {id:'sneakers',name:'Cloud Sneakers',category:'Lifestyle',price:95,color:'#dfdcec',summary:'A lighter step, every day.',description:'An illustrated pair of casual sneakers with soft lavender accents. Sample colors, details, and price are for demonstration only.',isNew:false}
 ];
 function findProducts(query,category){const term=query.trim().toLowerCase();return products.filter(product=>(category==='All'||product.category===category)&&`${product.name} ${product.category} ${product.summary}`.toLowerCase().includes(term));}
+
+const productStorageKey='sl-tech-store-products-v1';
+const productCategories=['Tech','Home','Accessories','Lifestyle'];
+const sampleProducts=[...products];
+function sanitizeProduct(value){
+  if(!value||typeof value!=='object'||Array.isArray(value))return null;
+  if(typeof value.id!=='string'||!/^local-[a-zA-Z0-9-]{6,80}$/.test(value.id))return null;
+  for(const [field,max] of [['name',80],['summary',100],['description',2000]]){
+    if(typeof value[field]!=='string'||!value[field].trim()||value[field].length>max)return null;
+  }
+  if(!productCategories.includes(value.category)||typeof value.price!=='number'||!Number.isFinite(value.price)||value.price<0.01||value.price>999999.99)return null;
+  const image=typeof value.image==='string'&&value.image.length<=900000&&/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(value.image)?value.image:'';
+  return {id:value.id,name:value.name.trim(),summary:value.summary.trim(),description:value.description.trim(),category:value.category,price:Math.round(value.price*100)/100,color:typeof value.color==='string'&&/^#[0-9a-fA-F]{6}$/.test(value.color)?value.color:'#e7dbed',image,isNew:value.isNew===true,isCustom:true};
+}
+function getSavedProducts(){
+  try{const values=JSON.parse(localStorage.getItem(productStorageKey)||'[]');if(!Array.isArray(values))return [];const seen=new Set();return values.map(sanitizeProduct).filter(value=>{if(!value||seen.has(value.id))return false;seen.add(value.id);return true;}).slice(0,30);}catch{return [];}
+}
+function reloadProducts(){products.splice(0,products.length,...getSavedProducts(),...sampleProducts);}
+function productImage(product){return product.isCustom?(product.image||'assets/products/placeholder.svg'):`assets/products/${product.id}.svg`;}
+reloadProducts();
