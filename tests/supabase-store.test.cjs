@@ -55,9 +55,28 @@ async function main(){
  const failed=app({handler:()=>{throw new TypeError('network')}});await assert.rejects(failed.cloud.request('/auth/login','POST',{role:'customer',username:'user',password:'unused'}),/Cannot reach online storage/);
  const buyerStorage=new Map([['lk-auth-v2:https://isolated-check.supabase.co:customer',JSON.stringify({access_token:'buyer-access',refresh_token:'buyer-refresh',expires_at:Date.now()/1000+3600})]]);
  const adminPreflight=app({storage:buyerStorage,handler:()=>{throw new TypeError('Failed to fetch');}});
- await assert.rejects(adminPreflight.cloud.request('/admin/users'),error=>error.code==='ADMIN_SERVICE_UNAVAILABLE'&&error.message.includes('store-admin')&&!error.message.includes('internet connection'),'A failed admin preflight must identify the admin service, not blame the internet connection');
- const missingAdmin=app({storage:buyerStorage,handler:()=>({status:404,body:{message:'Requested function was not found'}})});
- await assert.rejects(missingAdmin.cloud.request('/admin/users'),error=>error.code==='ADMIN_SERVICE_UNAVAILABLE'&&error.message.includes('not been deployed'));
+ await assert.rejects(adminPreflight.cloud.request('/admin/users'),error=>error.code==='ADMIN_SERVICE_UNAVAILABLE'&&error.message.includes('function endpoint')&&!error.message.includes('internet connection'),'A failed admin preflight must identify the admin service, not blame the internet connection');
+ assert.equal(adminPreflight.calls[0].url,'https://isolated-check.supabase.co/functions/v1/store-admin','The default function remains compatible with existing deployments');
+ const missingAdmin=app({storage:buyerStorage,handler:()=>({status:404,body:{code:'NOT_FOUND',message:'Requested function was not found'}})});
+ await assert.rejects(missingAdmin.cloud.request('/admin/users'),error=>error.code==='ADMIN_SERVICE_UNAVAILABLE'&&error.message.includes('endpoint was not found'));
+ const renamedAdmin=app({config:{supabaseAdminFunction:'custom-admin-endpoint'},storage:buyerStorage});
+ await renamedAdmin.cloud.request('/admin/users?role=seller&page=2&search=shop');
+ await renamedAdmin.cloud.request('/admin/users','POST',{role:'seller',username:'shop'});
+ await renamedAdmin.cloud.request('/admin/users','DELETE',{authId:'account-id',username:'shop'});
+ assert.equal(renamedAdmin.calls[0].url,'https://isolated-check.supabase.co/functions/v1/custom-admin-endpoint?role=seller&page=2&search=shop');
+ assert.deepEqual(renamedAdmin.calls.map(call=>call.options.method),['GET','POST','DELETE']);
+ assert(renamedAdmin.calls.every(call=>call.url.startsWith('https://isolated-check.supabase.co/functions/v1/custom-admin-endpoint')&&call.options.headers.Authorization==='Bearer buyer-access'));
+ assert.equal(JSON.parse(renamedAdmin.calls[1].options.body).username,'shop');
+ assert.equal(JSON.parse(renamedAdmin.calls[2].options.body).authId,'account-id');
+ for(const slug of ['https://other-project.supabase.co/functions/v1/admin','../auth/v1/user','admin?redirect=1','admin/other','',42]){
+  const invalidAdmin=app({config:{supabaseAdminFunction:slug},storage:buyerStorage});
+  await assert.rejects(invalidAdmin.cloud.request('/admin/users'),/function slug/);
+  assert.equal(invalidAdmin.calls.length,0,'An invalid endpoint must be rejected before sending a session');
+ }
+ const renamedFailure=app({config:{supabaseAdminFunction:'custom-admin-endpoint'},storage:buyerStorage,handler:()=>{throw new TypeError('Failed to fetch');}});
+ await assert.rejects(renamedFailure.cloud.request('/admin/users?page=2'),error=>error.code==='ADMIN_SERVICE_UNAVAILABLE');
+ const missingAccount=app({storage:buyerStorage,handler:()=>({status:404,body:{error:'That account no longer exists.'}})});
+ await assert.rejects(missingAccount.cloud.request('/admin/users','DELETE',{authId:'missing'}),error=>error.status===404&&error.message==='That account no longer exists.'&&error.code!=='ADMIN_SERVICE_UNAVAILABLE','An account deleted elsewhere must not be reported as a missing deployment');
  const stockChanged=app({storage:buyerStorage,handler:(url,options)=>{
   if(url.includes('/lk_profiles'))return {body:[{id:'customer_owned',role:'customer',username:'buyer',name:'Buyer',email:''}]};
   if(url.includes('/lk_products'))return {body:[{data:{id:'product_live',stock:2}},{data:{id:'product_empty',stock:0}}]};

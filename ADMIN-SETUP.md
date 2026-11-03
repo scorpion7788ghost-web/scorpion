@@ -16,17 +16,23 @@ The SQL upgrade also rejects direct browser signup independently of this setting
 
 ## 2. Deploy the administrator service
 
-In the project's **Edge Functions**, choose **Deploy a new function → Via Editor**. Name it exactly **store-admin**. Replace `index.ts` with the complete contents of [supabase/functions/store-admin/index.ts](supabase/functions/store-admin/index.ts), and deploy it.
+The current project's deployed function URL ends in **`/functions/v1/rapid-handler`**, although its display name is **store-admin**. Both websites are configured to use `rapid-handler`. To update this deployment, open the existing function's editor, replace `index.ts` with the complete contents of [supabase/functions/store-admin/index.ts](supabase/functions/store-admin/index.ts), and deploy the update.
+
+For a new deployment, choose **Deploy a new function → Via Editor**. Name it **store-admin**, use the same source file, and deploy it. Set `supabaseAdminFunction: 'store-admin'` in both website configurations when using this new endpoint.
+
+Check the function's **URL** in the Edge Functions list. Changing its display name later does not change its endpoint slug. If the URL ends in `/functions/v1/another-name`, set `supabaseAdminFunction: 'another-name'` in both [assets/store-config.js](assets/store-config.js) and [seller-site/assets/store-config.js](seller-site/assets/store-config.js), then publish both sites. Copy the exact last part of the URL; this setting accepts a function slug, not a full URL. The function must belong to the same Supabase project configured in `supabaseUrl` and contain the administrator service code above. If omitted, the setting defaults to `store-admin`.
 
 In this function's settings, turn **Verify JWT with legacy secret** off, if that option is shown. The function verifies the caller's bearer session with Supabase Auth and then checks `lk_admins` on every request. This verification must remain in the function code.
 
 Supabase provides `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to the hosted function. The service key stays in that server environment. **Do not paste it into `assets/store-config.js`, GitHub, or chat.** The default allowed website origin is `https://scorpion7788ghost-web.github.io`, covering both repositories. For a future custom domain, set the function secret `STORE_ALLOWED_ORIGINS` to a comma-separated list of exact allowed origins.
 
-If the Supabase CLI is already installed and authenticated, the equivalent deployment from this repository is:
+If the Supabase CLI is already installed and authenticated, deploy the source from this repository with:
 
 ```powershell
 supabase functions deploy store-admin --project-ref sukeowjxzqgszdvbpves --no-verify-jwt
 ```
+
+This CLI command creates or updates the `store-admin` endpoint. When switching to it from `rapid-handler`, set `supabaseAdminFunction: 'store-admin'` in both website configurations and publish them.
 
 ## 3. Check real accounts
 

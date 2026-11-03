@@ -6,6 +6,8 @@
  const role=document.body?.dataset.portal==='seller'?'seller':'customer';
  const url=(config.supabaseUrl||'').replace(/\/$/,'');
  const key=config.supabaseKey||'';
+ const adminFunction=config.supabaseAdminFunction??'store-admin';
+ const adminPath='/functions/v1/'+adminFunction;
  const storageKey='lk-auth-v2:'+url+':'+role;
  let session=null,refreshing=null;
  try{session=JSON.parse(localStorage.getItem(storageKey)||'null');}catch{}
@@ -33,13 +35,13 @@
     if(path==='/rest/v1/rpc/lk_is_admin'&&result.code==='PGRST202')message='Administrator setup is incomplete. Apply the admin-access.sql upgrade in Supabase.';
     if(response.status===429)message='Too many requests. Please wait and try again.';
     if(path.startsWith('/auth/')&&response.status===400&&result.error_code==='invalid_credentials')message='Username or password is incorrect for this account type.';
-    const error=new Error(message);error.status=response.status;throw error;
+    const error=new Error(message);error.status=response.status;error.code=result.code;throw error;
    }
    return result;
   }catch(error){
    if(error.name==='AbortError')throw new Error('Online storage took too long to respond. Please try again.');
    if(error instanceof TypeError){
-    if(path.startsWith('/functions/v1/store-admin')){const unavailable=new Error('Cannot reach the admin service. Check that store-admin is deployed in Supabase and allows requests from this website.');unavailable.code='ADMIN_SERVICE_UNAVAILABLE';throw unavailable;}
+    if(path===adminPath||path.startsWith(adminPath+'?')){const unavailable=new Error('Cannot reach the admin service. Check that the configured function endpoint is deployed in Supabase and allows requests from this website.');unavailable.code='ADMIN_SERVICE_UNAVAILABLE';throw unavailable;}
     throw new Error('Cannot reach online storage. Check your internet connection.');
    }
    throw error;
@@ -97,8 +99,9 @@
   if(path==='/admin/status')return {isAdmin:(await access())?await rpc('lk_is_admin',{}):false};
   if(path==='/admin/users'||path.startsWith('/admin/users?')){
    const token=await access();if(!token)throw new Error('Please sign in.');
-   try{return await wire('/functions/v1/store-admin'+(path.includes('?')?'?'+path.split('?')[1]:''),{method,token,body:method==='GET'?undefined:data});}
-   catch(error){if(error.status===404){const missing=new Error('The store-admin service has not been deployed. Complete the administrator setup to manage accounts.');missing.code='ADMIN_SERVICE_UNAVAILABLE';throw missing;}throw error;}
+   if(typeof adminFunction!=='string'||!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,99}$/.test(adminFunction)){const invalid=new Error('Set supabaseAdminFunction to the function slug from its endpoint URL.');invalid.code='ADMIN_SERVICE_UNAVAILABLE';throw invalid;}
+   try{return await wire(adminPath+(path.includes('?')?'?'+path.split('?')[1]:''),{method,token,body:method==='GET'?undefined:data});}
+   catch(error){if(error.status===404&&error.code==='NOT_FOUND'){const missing=new Error('The configured admin function endpoint was not found. Check its URL in the administrator setup.');missing.code='ADMIN_SERVICE_UNAVAILABLE';throw missing;}throw error;}
   }
   if(path==='/auth/register')throw new Error('Accounts are created by the store administrator.');
   if(path==='/auth/login'&&method==='POST'){
