@@ -1,10 +1,11 @@
-/* Server API client. Account credentials and records are never stored in the browser. */
+/* Store API client. Passwords and account records stay with the configured backend. */
 (() => {
  'use strict';
  const state={user:null,stores:[],products:[],sellerStore:null,cart:{},orders:[],csrf:'',portal:document.body?.dataset.portal==='seller'?'seller':'customer'};
  const base=window.STORE_CONFIG?.apiBase||'/api';
  let failure='';
  async function request(path,method='GET',data){
+  if(window.StoreCloud?.enabled)return window.StoreCloud.request(path,method,data);
   const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),60000);
   try{
    const headers={Accept:'application/json'};const options={method,credentials:'same-origin',cache:'no-store',signal:controller.signal,headers};

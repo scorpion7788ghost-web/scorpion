@@ -1,6 +1,8 @@
 ﻿# File-backed accounts for LK Tech Store
 
-The two websites now use a PHP API instead of demo accounts, browser account records, or a sample catalog. They start with no users, sellers, products, or orders.
+For the new shared database option that runs directly from GitHub Pages, use [SUPABASE-SETUP.md](SUPABASE-SETUP.md). It removes the public sites' PHP requirement after the Supabase project's URL, public key, schema, and authentication settings are configured. The original local PHP/GitHub-file architecture below remains an alternative; it is a separate data backend.
+
+The two websites can use a PHP API instead of demo accounts, browser account records, or a sample catalog. They start with no users, sellers, products, or orders.
 
 ## Where registrations are saved
 

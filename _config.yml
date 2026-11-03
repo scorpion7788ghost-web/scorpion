@@ -12,3 +12,5 @@ exclude:
   - Dockerfile
   - render.yaml
   - DEPLOYMENT.md
+  - SUPABASE-SETUP.md
+  - supabase
