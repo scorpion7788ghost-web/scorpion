@@ -30,6 +30,7 @@
    if(!response.ok){
     let message=result.msg||result.message||result.error_description||result.error||'The hosted request could not be completed.';
     if(result.code==='42P01'||result.code==='PGRST202'||result.code==='PGRST205')message='Run the Supabase schema setup before using the store.';
+    if(path==='/rest/v1/rpc/lk_is_admin'&&result.code==='PGRST202')message='Administrator setup is incomplete. Apply the admin-access.sql upgrade in Supabase.';
     if(response.status===429)message='Too many requests. Please wait and try again.';
     if(path.startsWith('/auth/')&&response.status===400&&result.error_code==='invalid_credentials')message='Username or password is incorrect for this account type.';
     const error=new Error(message);error.status=response.status;throw error;
