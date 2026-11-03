@@ -33,3 +33,7 @@ Thumbs.db
 # Python check artifacts
 __pycache__/
 *.pyc
+
+# Private file-backed account records and runtime sessions
+/server/storage/
+/server/local.php

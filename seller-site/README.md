@@ -1,13 +1,13 @@
 ﻿# Seller Site
 
-A standalone seller workspace for the LK Tech Store browser demo. Deploy this directory as its own website, separately from the customer storefront.
+A separate seller website for LK Tech Store, connected to a PHP API with real file-backed account and product storage.
 
-- Nova Tech demo: `nova` / `SellerDemo123!`
-- Orbit Supply demo: `orbit` / `SellerDemo123!`
-- Create additional seller demo accounts from the sign-in page.
+There are no demo accounts, sample products, or hardcoded orders. Register a new seller account to start an empty store. Each seller has a unique public page, inventory management, product editing, server-saved drafts, store settings, and account settings.
 
-Features: seller-specific dashboard, product CRUD, inventory/status controls, image upload, live card preview, draft saving, store settings, unique seller pages, account settings, sample order management, and scoped catalog exports.
+The frontend expects the PHP API at `/api`. The API saves registration and seller JSON files in a separate private GitHub repository, or in private local files when configured for local development. GitHub credentials stay only on the backend.
 
-The fixtures live in `assets/demo-data.js`. Changes are stored only in this browser, with separate records per seller. This prototype has no database, server-enforced authorization, real payments, or cross-device synchronization. Do not use real credentials or personal information.
+GitHub Pages can serve these frontend files but cannot run the PHP API. To register users online, host the API on PHP hosting. The complete backend, Windows startup scripts, setup documentation, and automated tests are in the customer/source repository:
 
-Serve over HTTPS or localhost. Use `shop.html?id=nova-tech` and `shop.html?id=orbit-supply` to preview the distinct public seller pages.
+https://github.com/scorpion7788ghost-web/scorpion
+
+See `SELLER-SITE.md` there for setup. Do not add a GitHub access token to browser JavaScript.

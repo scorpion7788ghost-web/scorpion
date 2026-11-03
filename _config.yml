@@ -5,3 +5,6 @@ exclude:
   - tests
   - SELLER-SITE.md
   - AGENTS.md
+  - server
+  - start-sites.ps1
+  - stop-sites.ps1

@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 from html.parser import HTMLParser
 from urllib.parse import urlsplit,unquote
 ROOT=Path(__file__).resolve().parents[1]
@@ -22,6 +22,6 @@ for folder in [ROOT,ROOT/'seller-site']:
   print(str(path.relative_to(ROOT))+': PASS')
 assert not (ROOT/'add-product.html').exists()
 assert not (ROOT/'assets/add-product.js').exists()
-assert (ROOT/'assets/demo-core.js').read_bytes()==(ROOT/'seller-site/assets/demo-core.js').read_bytes()
-assert (ROOT/'assets/demo-data.js').read_bytes()==(ROOT/'seller-site/assets/demo-data.js').read_bytes()
-print('PASS: customer/seller separation, page links, form labels, assets, unique IDs, and matching hardcoded data.')
+assert (ROOT/'assets/store-api.js').read_bytes()==(ROOT/'seller-site/assets/store-api.js').read_bytes()
+assert not (ROOT/'assets/demo-data.js').exists()
+print('PASS: customer/seller separation, page links, form labels, assets, unique IDs, and matching API clients.')

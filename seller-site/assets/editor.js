@@ -1,11 +1,12 @@
 'use strict';
-(() => {
+(async () => {
+  await window.sellerReady;
   if(!sellerUser)return;
   const form = $('#add-product-form');
   const editingId=new URLSearchParams(location.search).get('id');
   const editingProduct=editingId?sellerStore.products.find(p=>p.id===editingId):null;
   if(editingId&&!editingProduct){form.replaceChildren(el('p','form-error','That product does not belong to your store, or it no longer exists.'));$('.preview-column').hidden=true;return;}
-  const draftKey = 'lk-demo-product-draft:'+sellerUser.id+(editingId?':'+editingId:'');
+  const draftKey=editingId||'new';
   let uploadedImage = '';
   let uploadedName = '';
   let imageBusy = false;
@@ -30,7 +31,7 @@
     $('#description-count').textContent=`${fields.description.value.length} / 2000`;
     $('#uploaded-image-info').hidden=!uploadedImage;
     $('#uploaded-image-name').textContent=uploadedName||'Product image';
-    $('#custom-product-count').textContent=`${StoreDemo.db.requireSeller(sellerUser.id).products.length} product${StoreDemo.db.requireSeller(sellerUser.id).products.length===1?'':'s'} added`;
+    $('#custom-product-count').textContent=`${Store.db.requireSeller(sellerUser.id).products.length} product${Store.db.requireSeller(sellerUser.id).products.length===1?'':'s'} added`;
   }
   function markChanged(){if(saved){saved=false;$('#save-product').disabled=false;$('#save-product').textContent=editingId?'Save changes':'Add product +';$('#editor-success').hidden=true;}showError('');$('#draft-status').textContent='Unsaved changes';preview();}
   form.addEventListener('input',markChanged);
@@ -66,34 +67,33 @@
   zone.addEventListener('dragleave',event=>{if(!zone.contains(event.relatedTarget))zone.classList.remove('drag-active');});
   zone.addEventListener('drop',event=>{event.preventDefault();zone.classList.remove('drag-active');if(event.dataTransfer.files.length>1){$('#image-error').textContent='Please choose one product image at a time.';return;}loadImage(event.dataTransfer.files[0]);});
   $('#remove-image').addEventListener('click',()=>{imageSequence++;uploadedImage='';uploadedName='';$('#new-image').value='';$('#image-error').textContent='';busy(false);markChanged();});
-  $('#save-draft').addEventListener('click',()=>{
+  $('#save-draft').addEventListener('click',async()=>{
     if(imageBusy)return;
-    try{localStorage.setItem(draftKey,JSON.stringify(values()));$('#draft-status').textContent='Draft saved on this browser. Come back whenever you are ready.';showError('');}
-    catch{showError('Your draft could not be saved. Browser storage may be full or unavailable. Try removing the photo or freeing storage.');}
+    try{await Store.db.saveDraft(sellerUser.id,draftKey,values());$('#draft-status').textContent='Draft saved to your seller account. Come back whenever you are ready.';showError('');}
+    catch(error){showError(error.message);}
   });
-  form.addEventListener('submit',event=>{
+  form.addEventListener('submit',async event=>{
     event.preventDefault();if(imageBusy||saved)return;showError('');
     try{
-      const product=StoreDemo.db.saveProduct(sellerUser.id,values(),editingId||undefined);
+      const product=await Store.db.saveProduct(sellerUser.id,values(),editingId||undefined);
       refreshSeller();
-      try{localStorage.removeItem(draftKey);}catch{}
       saved=true;$('#save-product').disabled=true;$('#save-product').textContent=editingId?'Changes saved':'Product added';
       $('#view-created-product').href='shop.html?id='+encodeURIComponent(sellerUser.id)+'&product='+encodeURIComponent(product.id);
       $('#view-created-product').textContent='Preview seller page';
-      $('#editor-success').hidden=false;$('#draft-status').textContent='Saved to your own seller workspace. Visible in this browser only; not synced to other visitors.';preview();
+      $('#editor-success').hidden=false;$('#draft-status').textContent='Saved to your seller account and visible in the customer store when active.';preview();
       $('#editor-success').scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'center'});
     }catch(error){showError(error.message);}
   });
   Object.values(fields).forEach(field=>field.addEventListener('input',()=>field.setCustomValidity('')));
   $('#add-another').addEventListener('click',()=>{if(editingId){location.assign('add-product.html');return;}imageSequence++;form.reset();uploadedImage='';uploadedName='';saved=false;busy(false);$('#editor-success').hidden=true;$('#save-product').textContent=editingId?'Save changes':'Add product +';$('#draft-status').textContent='';$('#image-error').textContent='';showError('');preview();fields.name.focus();});
   try{
-    const draft=editingProduct?{...editingProduct,price:String(editingProduct.price),stock:String(editingProduct.stock)}:JSON.parse(localStorage.getItem(draftKey)||'null');
+    const draft=editingProduct?{...editingProduct,price:String(editingProduct.price),stock:String(editingProduct.stock)}:Store.db.getDraft(sellerUser.id,draftKey);
     if(draft&&typeof draft==='object'){
       for(const [name,field] of Object.entries(fields))if(typeof draft[name]==='string')field.value=draft[name].slice(0,name==='description'?2000:name==='summary'?100:name==='name'?80:name==='sku'?40:30);
       if(!productCategories.includes(fields.category.value))fields.category.value='';
       const color=[...form.querySelectorAll('[name="color"]')].find(input=>input.value===draft.color);if(color)color.checked=true;
       $('#new-is-new').checked=draft.isNew!==false;
-      if(typeof draft.image==='string'&&StoreDemo.safeImage(draft.image)===draft.image){uploadedImage=draft.image;uploadedName=typeof draft.imageName==='string'?draft.imageName.slice(0,200):'Draft image';}
+      if(typeof draft.image==='string'&&Store.safeImage(draft.image)===draft.image){uploadedImage=draft.image;uploadedName=typeof draft.imageName==='string'?draft.imageName.slice(0,200):'Draft image';}
       $('#draft-status').textContent=editingProduct?'Editing a product from your store.':'Your saved draft has been restored.';
     }
   }catch{$('#draft-status').textContent='No saved draft could be restored. You can start a new product below.';}
