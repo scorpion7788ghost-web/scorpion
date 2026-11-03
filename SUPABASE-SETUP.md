@@ -1,5 +1,7 @@
 # Shared online storage with Supabase
 
+**Current access model:** Both stores require sign-in, and accounts are created by an administrator. Follow [ADMIN-SETUP.md](ADMIN-SETUP.md) to upgrade the existing Supabase project and enable the `scorpion` administrator. The initial setup instructions below describe the earlier self-registration model; the admin upgrade supersedes it.
+
 This option keeps both websites on GitHub Pages. Supabase provides managed password authentication and a hosted Postgres database; no PHP host, Render service, Docker build, or private GitHub write token is required.
 
 Both website configurations now point to the same Supabase project. The live public catalog is reachable. Username registration also requires the Authentication settings in step 3; a valid URL and key alone do not enable it. There are no sample users or products. Existing PHP/GitHub records are not automatically migrated; keep any existing data until a deliberate migration is complete.

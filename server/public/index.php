@@ -71,12 +71,15 @@ try {
     };
     if ($path==='/bootstrap' && $method==='GET') {
         $data=$files->transaction(function () use ($service,$user,$portal) {
-            $catalog=$service->catalog();
+            $catalog=$user?$service->catalog():['stores'=>[],'products'=>[]];
             return ['portal'=>$portal,'user'=>$user?$service->publicUser($user):null,'stores'=>$catalog['stores'],'products'=>$catalog['products'],'sellerStore'=>$user && $portal==='seller'?$service->ownStore($user,$user['id']):null,'cart'=>$user && $portal==='customer'?$service->cart($user):new stdClass(),'orders'=>[]];
         });
         $data['csrf']=$_SESSION['csrf'];$data['customerUrl']=storePublicUrl('customer');$data['sellerUrl']=storePublicUrl('seller');respond($data);
     }
-    if (in_array($path,['/auth/register','/auth/login'],true) && $method==='POST') {
+    if ($path==='/auth/register') throw new ApiFailure('Accounts are created by the store administrator.',403);
+    if ($path==='/admin/status') respond(['isAdmin'=>false]);
+    if (str_starts_with($path,'/admin/')) throw new ApiFailure('Account management is available on the hosted Supabase admin website.',503);
+    if ($path==='/auth/login' && $method==='POST') {
         if (($input['role'] ?? $portal)!==$portal) throw new ApiFailure('Use the correct website for this account type.',403);
         $rateKey=hash('sha256',($_SERVER['REMOTE_ADDR'] ?? '').'|'.$portal.'|'.$path.'|'.strtolower(is_string($input['username'] ?? null)?substr($input['username'],0,30):''));
         $files->transaction(function () use ($files,$rateKey) {
@@ -85,12 +88,9 @@ try {
             if ($limit['count']>=10) throw new ApiFailure('Too many attempts. Try again in 15 minutes.',429);
             $limit['count']++; $files->write('limits',$rateKey,$limit);
         });
-        if ($path==='/auth/register') {
-            $ipKey=hash('sha256','register|'.($_SERVER['REMOTE_ADDR'] ?? ''));
-            $files->transaction(function () use ($files,$ipKey) { $limit=$files->read('limits',$ipKey) ?? ['started'=>time(),'count'=>0];if(time()-$limit['started']>3600)$limit=['started'=>time(),'count'=>0];if($limit['count']>=30)throw new ApiFailure('Registration limit reached. Try again later.',429);$limit['count']++;$files->write('limits',$ipKey,$limit); });
-            $account=$service->register($portal,$input);
-        } else {if(!is_string($input['password'] ?? null)||strlen($input['password'])>72)throw new ApiFailure('Username or password is incorrect for this account type.',401);$account=$service->login($portal,$service->text($input['username'] ?? '',30,true),$input['password']);}
-        $bind($account); respond(['user'=>$service->publicUser($account),'csrf'=>$_SESSION['csrf']],$path==='/auth/register'?201:200);
+        if(!is_string($input['password'] ?? null)||strlen($input['password'])>72)throw new ApiFailure('Username or password is incorrect for this account type.',401);
+        $account=$service->login($portal,$service->text($input['username'] ?? '',30,true),$input['password']);
+        $bind($account); respond(['user'=>$service->publicUser($account),'csrf'=>$_SESSION['csrf']],200);
     }
     if ($path==='/auth/logout' && $method==='POST') {
         $_SESSION=[];session_regenerate_id(true);$_SESSION['csrf']=bin2hex(random_bytes(32));respond(['ok'=>true,'csrf'=>$_SESSION['csrf']]);

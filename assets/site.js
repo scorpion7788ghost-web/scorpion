@@ -1,5 +1,6 @@
 window.customerReady=(async()=>{
 await Store.ready;
+if(Store.accessReady&&!(await Store.accessReady))return;
 reloadProducts();
 "use strict";
 function stockLimit(product){return Math.max(0,Math.min(99,Number.isInteger(product?.stock)?product.stock:0));}

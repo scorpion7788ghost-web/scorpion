@@ -1,13 +1,29 @@
+/* Username sign-in only. Accounts are provisioned by an administrator. */
 'use strict';
-(async () => {
-  await Store.ready;
-  const role=document.body.dataset.portal==='seller'?'seller':'customer';
-  let registering=false;
-  const form=document.getElementById('auth-form');if(!form)return;
-  const get=id=>document.getElementById(id);
-  const destination=role==='seller'?'dashboard.html':'account.html';
-  if(Store.auth.current(role)){location.replace(destination);return;}
-  get('switch-auth').addEventListener('click',()=>{registering=!registering;get('register-name-field').hidden=!registering;get('confirm-field').hidden=!registering;get('auth-name').required=registering;get('auth-confirm').required=registering;get('register-email-field').hidden=!registering;get('auth-password').minLength=registering?12:0;get('auth-password').autocomplete=registering?'new-password':'current-password';get('auth-title').textContent=registering?'Start your next chapter.':'Welcome back.';get('auth-subtitle').textContent=registering?'Create your own '+role+' account.':'Sign in to your '+role+' account.';get('auth-submit').textContent=registering?'Create Account +':'Sign In \u2192';get('switch-prompt').textContent=registering?'Already have an account?':'New here?';get('switch-auth').textContent=registering?'Sign In':'Create an account';get('auth-error').hidden=true;});
-  get('toggle-password').addEventListener('click',()=>{const input=get('auth-password');const show=input.type==='password';input.type=show?'text':'password';get('toggle-password').textContent=show?'Hide':'Show';get('toggle-password').setAttribute('aria-label',show?'Hide password':'Show password');});
-  form.addEventListener('submit',async event=>{event.preventDefault();get('auth-error').hidden=true;const button=get('auth-submit');button.disabled=true;button.textContent='Please wait...';try{if(Store.error)await Store.refresh();if(registering){if(get('auth-password').value!==get('auth-confirm').value)throw new Error('The passwords do not match.');await Store.auth.register(role,{name:get('auth-name').value,username:get('auth-username').value,password:get('auth-password').value,email:get('auth-email')?.value||''});}else await Store.auth.signIn(role,get('auth-username').value,get('auth-password').value);location.assign(destination);}catch(error){get('auth-error').textContent=error.message;get('auth-error').hidden=false;}finally{button.disabled=false;button.textContent=registering?'Create Account +':'Sign In \u2192';}});
+(async()=>{
+ await Store.ready;
+ const role=document.body.dataset.portal==='seller'?'seller':'customer';
+ const admin=document.body.dataset.adminLogin==='true';
+ const get=id=>document.getElementById(id),form=get('auth-form');if(!form)return;
+ const allowed=role==='seller'?['dashboard.html','products.html','add-product.html','edit-product.html','orders.html','settings.html','account.html','shop.html']:['index.html','cart.html','product.html','contact.html','about.html','account.html','seller.html'];
+ function destination(){
+  if(admin)return 'admin.html';
+  const next=new URLSearchParams(location.search).get('next')||'';
+  const match=next.match(/^([a-z-]+\.html)(\?[^#]*)?$/);
+  return match&&allowed.includes(match[1])?next:role==='seller'?'dashboard.html':'index.html';
+ }
+ async function enter(){
+  if(admin){const status=await Store.request('/admin/status');if(!status.isAdmin)throw new Error('This customer account does not have administrator access.');}
+  location.replace(destination());
+ }
+ if(Store.auth.current(role)){try{await enter();return;}catch(error){get('auth-error').textContent=error.message;get('auth-error').hidden=false;}}
+ get('toggle-password').addEventListener('click',()=>{const input=get('auth-password'),show=input.type==='password';input.type=show?'text':'password';get('toggle-password').textContent=show?'Hide':'Show';get('toggle-password').setAttribute('aria-label',show?'Hide password':'Show password');});
+ let busy=false;
+ form.addEventListener('submit',async event=>{
+  event.preventDefault();if(busy)return;busy=true;
+  const button=get('auth-submit');button.disabled=true;button.textContent='Signing in...';get('auth-error').hidden=true;
+  try{await Store.auth.signIn(role,get('auth-username').value,get('auth-password').value);await enter();}
+  catch(error){get('auth-error').textContent=error.message;get('auth-error').hidden=false;}
+  finally{busy=false;button.disabled=false;button.textContent='Sign In';}
+ });
 })();

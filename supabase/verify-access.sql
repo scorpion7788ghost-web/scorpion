@@ -1,11 +1,11 @@
 -- Optional SQL Editor verification. Every temporary record is rolled back.
--- Run after schema.sql. A failing assertion aborts the transaction; do not commit it.
+-- Run after schema.sql and admin-access.sql. A failing assertion aborts the transaction; do not commit it.
 begin;
 select set_config('lk_test.seller_one',gen_random_uuid()::text,true);
 select set_config('lk_test.seller_two',gen_random_uuid()::text,true);
 select set_config('lk_test.customer',gen_random_uuid()::text,true);
-insert into auth.users(id,email,raw_user_meta_data)
-select account_id::uuid,username||'@'||account_role||'.lk-store.invalid',
+insert into auth.users(id,email,raw_app_meta_data,raw_user_meta_data)
+select account_id::uuid,username||'@'||account_role||'.lk-store.invalid','{"lk_managed":true}'::jsonb,
   jsonb_build_object('role',account_role,'username',username,'name','Temporary access check','contact_email','private-access-check@example.invalid')
 from (
   select account_id,account_role,'qa_'||left(replace(account_id,'-',''),24) as username
@@ -24,6 +24,12 @@ begin
   perform set_config('lk_test.product',listing->>'id',true);
   perform public.lk_save_draft('new','{"name":"Temporary private draft"}'::jsonb);
   if (select count(*) from public.lk_drafts)<>1 then raise exception 'FAIL: own draft inaccessible.'; end if;
+  if public.lk_is_admin() then raise exception 'FAIL: ordinary seller has admin access.'; end if;
+  begin
+    perform * from public.lk_admins;
+    raise exception 'FAIL: ordinary seller can read administrator membership.';
+  exception when insufficient_privilege then null;
+  end;
   begin
     update public.lk_profiles set role='customer';
     raise exception 'FAIL: direct role mutation was allowed.';
@@ -77,7 +83,11 @@ select set_config('request.jwt.claim.sub','',true);
 set local role anon;
 do $$
 begin
-  if not exists(select 1 from public.lk_products where id=current_setting('lk_test.product') and status='active') then raise exception 'FAIL: published product is not public.'; end if;
+  begin
+    perform * from public.lk_products;
+    raise exception 'FAIL: anonymous visitors read catalog data.';
+  exception when insufficient_privilege then null;
+  end;
   begin
     perform * from public.lk_profiles;
     raise exception 'FAIL: anonymous visitors read registration details.';

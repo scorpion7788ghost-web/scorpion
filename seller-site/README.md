@@ -1,8 +1,10 @@
 ﻿# Seller Site
 
+**Access update:** Sign in with an administrator-provided seller account. Public account creation is removed. Follow the [admin setup guide](https://github.com/scorpion7788ghost-web/scorpion/blob/master/ADMIN-SETUP.md) to activate managed accounts and required sign-in in Supabase.
+
 A separate seller website for LK Tech Store, with shared online accounts and product storage.
 
-There are no demo accounts, sample products, or hardcoded orders. Register a new seller account to start an empty store. Each seller has a unique public page, inventory management, product editing, server-saved drafts, store settings, and account settings.
+There are no demo accounts, sample products, or hardcoded orders. The administrator creates seller accounts, each starting with an empty store. Each seller has a unique public page, inventory management, product editing, server-saved drafts, store settings, and account settings.
 
 This website connects directly to Supabase from GitHub Pages using the same project as the customer website. The Project URL and public publishable key are configured in `assets/store-config.js`, and the public catalog responds successfully. Username registration requires the Email provider to be enabled with **Confirm email off**. Never add a Supabase secret or service_role key to browser JavaScript.
 

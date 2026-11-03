@@ -50,12 +50,13 @@ def run():
                         raise AssertionError('A foreign origin was accepted.')
                     except urllib.error.HTTPError as error:
                         assert error.code == 403
-                request = urllib.request.Request(base + '/api/auth/register', method='POST',
+                subprocess.run(['php','tests/provision-local.php',folder], input=json.dumps({'role':'customer','name':'Isolated Hosting Check','username':'hosting_check','password':'HostingTestPassword123!'}), text=True,env=env,cwd=ROOT,stdout=subprocess.PIPE,check=True)
+                request = urllib.request.Request(base + '/api/auth/login', method='POST',
                     headers={**headers, 'Origin': public}, data=json.dumps({
                         'name': 'Isolated Hosting Check', 'username': 'hosting_check',
                         'password': 'HostingTestPassword123!'}).encode())
                 with urllib.request.urlopen(request) as response:
-                    assert response.status == 201
+                    assert response.status == 200
                     account = json.load(response)['user']
                     assert '; secure' in response.headers['Set-Cookie'].lower()
                 assert (Path(folder) / 'users' / (account['id'] + '.json')).is_file()
@@ -70,7 +71,7 @@ def run():
                     raise AssertionError('An unconfigured hostname was accepted.')
                 except urllib.error.HTTPError as error:
                     assert error.code == 403
-                print('PASS: hosted HTTPS origin, Secure session cookies, proxy registration, wrong-origin rejection, hostname enforcement, private paths, and storage-free health checks.')
+                print('PASS: hosted HTTPS origin, Secure session cookies, proxy sign-in, wrong-origin rejection, hostname enforcement, private paths, and storage-free health checks.')
             finally:
                 process.terminate()
                 try:

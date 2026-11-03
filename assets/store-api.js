@@ -21,7 +21,6 @@
  const auth={
   current:role=>state.user?.role===role?state.user:null,
   async signIn(role,username,password){await request('/auth/login','POST',{role,username,password});await refresh();return auth.current(role);},
-  async register(role,input){await request('/auth/register','POST',{...input,role});await refresh();return auth.current(role);},
   async signOut(){await request('/auth/logout','POST',{});await refresh();},
   async updateAccount(role,input){if(!auth.current(role))throw new Error('Please sign in again.');await request('/me','PATCH',input);await refresh();return auth.current(role);}
  };

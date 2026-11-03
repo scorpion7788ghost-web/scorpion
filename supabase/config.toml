@@ -1,0 +1,3 @@
+[functions.store-admin]
+# The function verifies the bearer session with Auth and checks lk_admins itself.
+verify_jwt = false

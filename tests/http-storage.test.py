@@ -38,22 +38,28 @@ def run():
    a=Client(bases['seller']);b=Client(bases['seller']);customer=Client(bases['customer'])
    assert a.bootstrap()['products']==[];assert b.bootstrap()['user'] is None;assert customer.bootstrap()['stores']==[]
    pw='HttpIntegration123!'
-   a.call('/auth/register','POST',{'name':'First Seller','username':'seller_first','password':pw,'email':'private@example.test'},201)
+   def provision(client,role,name,username,email=''):
+    payload={'role':role,'name':name,'username':username,'password':pw,'email':email}
+    subprocess.run(['php','tests/provision-local.php',folder],input=json.dumps(payload),text=True,env=env,cwd=ROOT,stdout=subprocess.PIPE,check=True)
+    client.call('/auth/login','POST',{'username':username,'password':pw})
+   a.call('/auth/register','POST',{'name':'First Seller','username':'seller_first','password':pw},403)
+   provision(a,'seller','First Seller','seller_first','private@example.test')
    aid=a.bootstrap()['user']['id'];assert (Path(folder)/'users'/f'{aid}.json').is_file()
-   a.call('/auth/register','POST',{'name':'Duplicate','username':'seller_first','password':pw},409)
-   b.call('/auth/register','POST',{'name':'Second Seller','username':'seller_second','password':pw},201);bid=b.bootstrap()['user']['id']
+   a.call('/auth/register','POST',{'name':'Duplicate','username':'seller_first','password':pw},403)
+   provision(b,'seller','Second Seller','seller_second');bid=b.bootstrap()['user']['id']
    customer.call('/auth/register','POST',{'role':'seller','name':'Wrong role','username':'wrong_role','password':pw},403)
-   customer.call('/auth/register','POST',{'name':'Customer','username':'buyer','password':pw},201)
+   provision(customer,'customer','Customer','buyer')
    customer.call('/seller/store','PATCH',{'name':'Forbidden'},403)
    a.call('/seller/store','PATCH',{'name':'CSRF'},403,token=False)
    a.call('/seller/store','PATCH',{'name':'Origin'},403,origin='https://evil.example')
    a.call('/seller/store','PATCH',{'storeId':bid,'name':'Hijacked'},403)
    product=a.call('/seller/products','POST',{'name':'A product','summary':'Summary','description':'A real listing description.','category':'Tech','price':'19.95','stock':2,'status':'active','sku':'LIVE-001','isNew':True},201)['product'];pid=product['id']
    assert product['sellerId']==aid
+   guest=Client(bases['customer']);assert guest.bootstrap()['products']==[];assert guest.bootstrap()['stores']==[]
    b.call('/seller/products/'+pid,'PUT',{'name':'Foreign'},404)
    public=customer.bootstrap();assert len(public['products'])==1;assert 'private@example.test' not in json.dumps(public)
    customer.call('/cart','PUT',{'items':{pid:1}});assert customer.bootstrap()['cart'][pid]==1
-   other=Client(bases['customer']);other.bootstrap();other.call('/auth/register','POST',{'name':'Other Customer','username':'other_buyer','password':pw},201);assert other.bootstrap()['cart']==[]
+   other=Client(bases['customer']);other.bootstrap();provision(other,'customer','Other Customer','other_buyer');assert other.bootstrap()['cart']==[]
    fresh=Client(bases['seller']);fresh.bootstrap();fresh.call('/auth/login','POST',{'username':'seller_first','password':pw});assert fresh.bootstrap()['user']['id']==aid
    fresh.call('/me','PATCH',{'name':'Changed','email':'','currentPassword':pw,'password':'ChangedPassword123!'})
    assert a.bootstrap()['user'] is None
@@ -65,7 +71,7 @@ def run():
    for cookie in a.jar:assert cookie.has_nonstandard_attr('HttpOnly');assert cookie.get_nonstandard_attr('SameSite')=='Lax'
    a.call('/auth/logout','POST',{});assert a.bootstrap()['user'] is None
    assert len(list((Path(folder)/'users').glob('*.json')))==4
-   print('PASS: real HTTP registration/login, per-user files, fresh-browser persistence, separate portals, CSRF, origin checks, ownership, shared public catalog, account carts, session revocation, secure cookies, logout, and private-file blocking.')
+   print('PASS: blocked public registration and real HTTP login, per-user files, fresh-browser persistence, separate portals, CSRF, origin checks, ownership, signed-in catalog, account carts, session revocation, secure cookies, logout, and private-file blocking.')
   finally:
    for process in servers:process.terminate()
    for process in servers:

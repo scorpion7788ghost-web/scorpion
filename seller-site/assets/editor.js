@@ -1,6 +1,7 @@
 'use strict';
 (async () => {
   await window.sellerReady;
+  if(Store.accessReady&&!(await Store.accessReady))return;
   if(!sellerUser)return;
   const form = $('#add-product-form');
   const editingId=new URLSearchParams(location.search).get('id');

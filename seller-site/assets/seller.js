@@ -1,5 +1,6 @@
 window.sellerReady=(async()=>{
 await Store.ready;
+if(Store.accessReady&&!(await Store.accessReady))return;
 'use strict';
 const productCategories=['Tech','Home','Accessories','Lifestyle'];
 const $=selector=>document.querySelector(selector);

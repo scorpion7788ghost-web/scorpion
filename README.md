@@ -1,5 +1,7 @@
 # LK Tech Store
 
+**Current access model:** Both stores require sign-in, and accounts are created by an administrator. Follow [ADMIN-SETUP.md](ADMIN-SETUP.md) to upgrade the existing Supabase project and enable the `scorpion` administrator. The initial setup instructions below describe the earlier self-registration model; the admin upgrade supersedes it.
+
 The customer store and **Seller Site** are separate websites with separate customer/seller login access. There are no demo accounts or sample products.
 
 ## Shared storage directly from GitHub Pages

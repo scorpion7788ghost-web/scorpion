@@ -19,15 +19,20 @@ for folder in [ROOT,ROOT/'seller-site']:
    if url.path:assert (path.parent/unquote(url.path)).is_file(),(path,reference)
    elif url.fragment:assert url.fragment in ids,(path,reference)
   if folder==ROOT:assert 'href="add-product.html"' not in text
+  body=next(a for t,a in parser.tags if t=='body')
+  assert body.get('data-access') in ('customer','seller','admin','public'),path
+  if body['data-access']=='public':assert 'assets/site.js' not in text,path
+  if body['data-access']!='admin':assert 'switch-auth' not in text and 'Create an account' not in text,path
+  if body['data-access']!='public':assert 'auth-pending' in body.get('class',''),path
   print(str(path.relative_to(ROOT))+': PASS')
 assert not (ROOT/'add-product.html').exists()
 assert not (ROOT/'assets/add-product.js').exists()
 assert (ROOT/'assets/store-api.js').read_bytes()==(ROOT/'seller-site/assets/store-api.js').read_bytes()
-for name in ['store-config.js','supabase-store.js']:
+for name in ['store-config.js','supabase-store.js','auth.js','access.js','access.css']:
  assert (ROOT/'assets'/name).read_bytes()==(ROOT/'seller-site/assets'/name).read_bytes(),name
 for folder in [ROOT,ROOT/'seller-site']:
  for page in folder.glob('*.html'):
   text=page.read_text(encoding='utf-8-sig')
-  assert text.index('assets/store-config.js') < text.index('assets/supabase-store.js') < text.index('assets/store-api.js'),page
+  assert text.index('assets/store-config.js') < text.index('assets/supabase-store.js') < text.index('assets/store-api.js') < text.index('assets/access.js'),page
 assert not (ROOT/'assets/demo-data.js').exists()
 print('PASS: customer/seller separation, page links, form labels, assets, unique IDs, and matching API clients.')

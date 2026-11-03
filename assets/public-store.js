@@ -1,6 +1,7 @@
 'use strict';
 (async () => {
  await window.customerReady;
+ if(Store.accessReady&&!(await Store.accessReady))return;
  const id=new URLSearchParams(location.search).get('id');const store=Store.db.store(id);const container=document.getElementById('public-store');
  if(!store){const title=document.createElement('h1');title.textContent='Store not found';container.append(title);document.getElementById('store-empty').hidden=false;return;}
  const eyebrow=document.createElement('p');eyebrow.className='eyebrow';eyebrow.textContent='MEET THE SELLER';const title=document.createElement('h1');title.textContent=store.profile.name;const tagline=document.createElement('p');tagline.className='store-tagline';tagline.textContent=store.profile.tagline;const description=document.createElement('p');description.textContent=store.profile.description;container.className='public-store-banner';container.append(eyebrow,title,tagline,description);document.title=store.profile.name+' | LK Tech Store';

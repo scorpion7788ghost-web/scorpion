@@ -19,7 +19,7 @@ async function main(){
  const legacySecret=app({config:{supabaseKey:serviceKey}});
  await assert.rejects(legacySecret.cloud.request('/bootstrap'),/never a service_role/);assert.equal(legacySecret.calls.length,0);
  const publicApp=app({handler:url=>({body:[]})});
- const empty=await publicApp.cloud.request('/bootstrap');assert.equal(empty.user,null);assert.equal(empty.products.length,0);
+ const empty=await publicApp.cloud.request('/bootstrap');assert.equal(empty.user,null);assert.equal(empty.products.length,0);assert.equal(publicApp.calls.length,0,'Anonymous bootstrap must not fetch store data');
  assert(publicApp.calls.every(c=>c.url.startsWith('https://isolated-check.supabase.co/')));
  const writes=[];const storage=new Map();
  function server(url,options){
@@ -36,12 +36,13 @@ async function main(){
   return {body:{}};
  }
  const seller=app({role:'seller',storage,handler:server});
- await seller.cloud.request('/auth/register','POST',{role:'seller',name:'Seller',username:'REAL_SELLER',password:'ValidPassword123!',email:'private@example.invalid'});
- const signup=JSON.parse(seller.calls.find(call=>call.url.endsWith('/auth/v1/signup')).options.body);assert.equal(signup.email,'real_seller@seller.lk-store.invalid');assert.equal(signup.data.contact_email,'private@example.invalid');
+ await assert.rejects(seller.cloud.request('/auth/register','POST',{}),/administrator/);
+ await seller.cloud.request('/auth/login','POST',{role:'seller',username:'REAL_SELLER',password:'ValidPassword123!'});
+ const login=JSON.parse(seller.calls.find(call=>call.url.includes('grant_type=password')).options.body);assert.equal(login.email,'real_seller@seller.lk-store.invalid');assert(!seller.calls.some(call=>call.url.endsWith('/signup')));
  assert(![...storage.values()].join('').includes('ValidPassword123!'));assert(![...storage.values()].join('').includes('private@example.invalid'));
  const state=await seller.cloud.request('/bootstrap');assert.equal(state.sellerStore.profile.id,'seller_owned');assert.equal(state.products.length,0);
  await seller.cloud.request('/seller/products/product_abc','PUT',{name:'Saved'});
- assert.equal(JSON.parse(writes[0].options.body).product_id,'product_abc');assert.equal(writes[0].options.headers.Authorization,'Bearer seller-access');
+ assert.equal(JSON.parse(writes[0].options.body).product_id,'product_abc');assert.equal(writes[0].options.headers.Authorization,'Bearer verified-access');
  await seller.cloud.request('/seller/draft?key=new','DELETE',{});assert.equal(JSON.parse(writes[1].options.body).input,null);
  const customer=app({role:'customer',storage,handler:server});assert.equal((await customer.cloud.request('/bootstrap')).user,null,'Customer portal must not inherit seller session');
  const fresh=app({role:'seller',storage,handler:server});assert.equal((await fresh.cloud.request('/bootstrap')).user.id,'seller_owned','Sign-in session persists across page loads');
@@ -51,7 +52,7 @@ async function main(){
  await assert.rejects(refused.cloud.request('/seller/products/product_abc/status','PATCH',{status:'active'}),/Ownership denied/);
  const profileFailure=app({role:'seller',storage,handler:(url,options)=>url.includes('/rpc/lk_update_account')?{status:503,body:{message:'Profile temporarily unavailable'}}:server(url,options)});
  await assert.rejects(profileFailure.cloud.request('/me','PATCH',{name:'Updated',email:'',currentPassword:'ValidPassword123!',password:'ChangedPassword123!'}),/Your password changed, but your profile details could not be saved/);
- const failed=app({handler:()=>{throw new TypeError('network')}});await assert.rejects(failed.cloud.request('/bootstrap'),/Cannot reach online storage/);
+ const failed=app({handler:()=>{throw new TypeError('network')}});await assert.rejects(failed.cloud.request('/auth/login','POST',{role:'customer',username:'user',password:'unused'}),/Cannot reach online storage/);
  const buyerStorage=new Map([['lk-auth-v2:https://isolated-check.supabase.co:customer',JSON.stringify({access_token:'buyer-access',refresh_token:'buyer-refresh',expires_at:Date.now()/1000+3600})]]);
  const stockChanged=app({storage:buyerStorage,handler:(url,options)=>{
   if(url.includes('/lk_profiles'))return {body:[{id:'customer_owned',role:'customer',username:'buyer',name:'Buyer',email:''}]};
@@ -62,9 +63,9 @@ async function main(){
  }});
  const buyerState=await stockChanged.cloud.request('/bootstrap');assert.equal(buyerState.cart.product_live,2);assert.equal(Object.keys(buyerState.cart).length,1,'Stored carts follow current stock and active listings');
  const needsConfirm=app({handler:()=>({body:{mailer_autoconfirm:false,external:{email:true}}})});
- await assert.rejects(needsConfirm.cloud.request('/auth/register','POST',{role:'customer',name:'Name',username:'new_buyer',password:'ValidPassword123!'}),/Confirm email off/);
+ await assert.rejects(needsConfirm.cloud.request('/auth/register','POST',{role:'customer',name:'Name',username:'new_buyer',password:'ValidPassword123!'}),/administrator/);
  assert(!needsConfirm.calls.some(call=>call.url.endsWith('/signup')),'Incorrect Auth configuration must be rejected before creating records');
  assert.equal(app({config:{provider:'php'}}).cloud,undefined,'Local PHP path stays available');
- console.log('PASS: cloud configuration and secret-key guards, empty catalog, username protocol, password-free session storage, separate role sessions, session renewal, product/draft RPC routing, surfaced server denials, and no offline fallback.');
+ console.log('PASS: cloud configuration and secret-key guards, anonymous data isolation, username login and blocked signup, password-free session storage, separate role sessions, session renewal, product/draft RPC routing, surfaced server denials, and no offline fallback.');
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

@@ -63,6 +63,7 @@
  async function bootstrap(){
   configured();
   const user=await identity();
+  if(!user)return {portal:role,user:null,stores:[],products:[],sellerStore:null,cart:{},orders:[],csrf:'',customerUrl:config.customerUrl,sellerUrl:config.sellerUrl};
   const [shops,publicProducts]=await Promise.all([rows('lk_shops','select=id,profile'),rows('lk_products','select=data&status=eq.active&order=created_at.desc')]);
   const products=publicProducts.map(row=>row.data);
   const stores=shops.map(row=>({profile:row.profile,products:products.filter(p=>p.sellerId===row.id)}));
@@ -85,14 +86,13 @@
  async function request(path,method='GET',data={}){
   configured();
   if(path==='/bootstrap'&&method==='GET')return bootstrap();
-  if(path==='/auth/register'&&method==='POST'){
-   checkStorage();validatePassword(data.password);if(data.role!==role)throw new Error('Use the correct account website.');
-   const settings=await wire('/auth/v1/settings');
-   if(settings.mailer_autoconfirm!==true||settings.external?.email!==true)throw new Error('Enable the Email provider and turn Confirm email off in Supabase before creating username accounts.');
-   if(settings.disable_signup)throw new Error('New account registration is disabled in Supabase.');
-   const email=loginEmail(data.username);const result=await wire('/auth/v1/signup',{method:'POST',body:{email,password:data.password,data:{role,username:String(data.username).trim().toLowerCase(),name:String(data.name||'').trim(),contact_email:String(data.email||'').trim()}}});
-   keepAuth(result);return {user:await identity()};
+  if(path==='/admin/status')return {isAdmin:(await access())?await rpc('lk_is_admin',{}):false};
+  if(path==='/admin/users'||path.startsWith('/admin/users?')){
+   const token=await access();if(!token)throw new Error('Please sign in.');
+   try{return await wire('/functions/v1/store-admin'+(path.includes('?')?'?'+path.split('?')[1]:''),{method,token,body:method==='GET'?undefined:data});}
+   catch(error){if(error.status===404)throw new Error('Account management is not available yet. Ask the store owner to finish administrator setup.');throw error;}
   }
+  if(path==='/auth/register')throw new Error('Accounts are created by the store administrator.');
   if(path==='/auth/login'&&method==='POST'){
    checkStorage();if(data.role!==role)throw new Error('Use the correct account website.');
    const result=await wire('/auth/v1/token?grant_type=password',{method:'POST',body:{email:loginEmail(data.username),password:data.password}});keepAuth(result);return {user:await identity()};
