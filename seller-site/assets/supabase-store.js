@@ -36,7 +36,14 @@
     const error=new Error(message);error.status=response.status;throw error;
    }
    return result;
-  }catch(error){if(error.name==='AbortError')throw new Error('Online storage took too long to respond. Please try again.');if(error instanceof TypeError)throw new Error('Cannot reach online storage. Check your internet connection.');throw error;}
+  }catch(error){
+   if(error.name==='AbortError')throw new Error('Online storage took too long to respond. Please try again.');
+   if(error instanceof TypeError){
+    if(path.startsWith('/functions/v1/store-admin')){const unavailable=new Error('Cannot reach the admin service. Check that store-admin is deployed in Supabase and allows requests from this website.');unavailable.code='ADMIN_SERVICE_UNAVAILABLE';throw unavailable;}
+    throw new Error('Cannot reach online storage. Check your internet connection.');
+   }
+   throw error;
+  }
   finally{clearTimeout(timer);}
  }
  function keepAuth(result){
@@ -91,7 +98,7 @@
   if(path==='/admin/users'||path.startsWith('/admin/users?')){
    const token=await access();if(!token)throw new Error('Please sign in.');
    try{return await wire('/functions/v1/store-admin'+(path.includes('?')?'?'+path.split('?')[1]:''),{method,token,body:method==='GET'?undefined:data});}
-   catch(error){if(error.status===404)throw new Error('Account management is not available yet. Ask the store owner to finish administrator setup.');throw error;}
+   catch(error){if(error.status===404){const missing=new Error('The store-admin service has not been deployed. Complete the administrator setup to manage accounts.');missing.code='ADMIN_SERVICE_UNAVAILABLE';throw missing;}throw error;}
   }
   if(path==='/auth/register')throw new Error('Accounts are created by the store administrator.');
   if(path==='/auth/login'&&method==='POST'){

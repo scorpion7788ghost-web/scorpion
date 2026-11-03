@@ -15,9 +15,9 @@
   }));get('users-empty').hidden=users.length!==0;
  }
  async function load(){
-  const current=++sequence;message('admin-error','');get('users-status').textContent='Loading accounts…';get('previous-page').disabled=true;get('next-page').disabled=true;get('refresh-users').disabled=true;
+  const current=++sequence;message('admin-error','');get('admin-setup-note').hidden=true;get('users-status').textContent='Loading accounts…';get('previous-page').disabled=true;get('next-page').disabled=true;get('refresh-users').disabled=true;
   try{const result=await Store.request('/admin/users?'+new URLSearchParams({page,role,search}));if(current!==sequence)return;total=result.total;if(page>1&&!result.users.length){page--;return load();}rows(result.users);get('users-status').textContent=total?((page-1)*25+1)+'–'+Math.min(page*25,total)+' of '+total+' accounts':'No matching accounts';get('previous-page').disabled=page<=1;get('next-page').disabled=page*25>=total;}
-  catch(error){if(current!==sequence)return;message('admin-error',error.message);get('users-status').textContent='Accounts could not be loaded.';get('user-rows').replaceChildren();get('users-empty').hidden=true;}
+  catch(error){if(current!==sequence)return;message('admin-error',error.message);get('admin-setup-note').hidden=error.code!=='ADMIN_SERVICE_UNAVAILABLE';get('users-status').textContent='Accounts could not be loaded.';get('user-rows').replaceChildren();get('users-empty').hidden=true;}
   finally{if(current===sequence)get('refresh-users').disabled=false;}
  }
  all('[data-role]').forEach(button=>button.addEventListener('click',()=>{role=button.dataset.role;page=1;all('[data-role]').forEach(item=>{item.classList.toggle('active',item===button);item.setAttribute('aria-pressed',String(item===button));});load();}));

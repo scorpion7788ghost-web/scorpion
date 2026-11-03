@@ -54,6 +54,10 @@ async function main(){
  await assert.rejects(profileFailure.cloud.request('/me','PATCH',{name:'Updated',email:'',currentPassword:'ValidPassword123!',password:'ChangedPassword123!'}),/Your password changed, but your profile details could not be saved/);
  const failed=app({handler:()=>{throw new TypeError('network')}});await assert.rejects(failed.cloud.request('/auth/login','POST',{role:'customer',username:'user',password:'unused'}),/Cannot reach online storage/);
  const buyerStorage=new Map([['lk-auth-v2:https://isolated-check.supabase.co:customer',JSON.stringify({access_token:'buyer-access',refresh_token:'buyer-refresh',expires_at:Date.now()/1000+3600})]]);
+ const adminPreflight=app({storage:buyerStorage,handler:()=>{throw new TypeError('Failed to fetch');}});
+ await assert.rejects(adminPreflight.cloud.request('/admin/users'),error=>error.code==='ADMIN_SERVICE_UNAVAILABLE'&&error.message.includes('store-admin')&&!error.message.includes('internet connection'),'A failed admin preflight must identify the admin service, not blame the internet connection');
+ const missingAdmin=app({storage:buyerStorage,handler:()=>({status:404,body:{message:'Requested function was not found'}})});
+ await assert.rejects(missingAdmin.cloud.request('/admin/users'),error=>error.code==='ADMIN_SERVICE_UNAVAILABLE'&&error.message.includes('not been deployed'));
  const stockChanged=app({storage:buyerStorage,handler:(url,options)=>{
   if(url.includes('/lk_profiles'))return {body:[{id:'customer_owned',role:'customer',username:'buyer',name:'Buyer',email:''}]};
   if(url.includes('/lk_products'))return {body:[{data:{id:'product_live',stock:2}},{data:{id:'product_empty',stock:0}}]};
