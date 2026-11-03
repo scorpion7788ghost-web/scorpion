@@ -1,76 +1,53 @@
-'use strict';
-const $ = selector => document.querySelector(selector);
-const $$ = selector => [...document.querySelectorAll(selector)];
-const demoSecrets = [
-  {name:'DATABASE_URL',type:'URL',value:'postgres://demo:example@localhost:5432/app'},
-  {name:'FEATURE_FLAG',type:'JSON',value:'{"new_dashboard":true}'},
-  {name:'LOGGING',type:'Boolean',value:'true'},
-  {name:'MAX_CONNECTIONS',type:'Number',value:'100'},
-  {name:'STRIPE_TEST_KEY',type:'String',value:'demo_placeholder_not_a_real_key'}
+﻿'use strict';
+const products = [
+  {id:'headphones',name:'Studio Headphones',category:'Tech',price:89,color:'#e7dbed',summary:'A quieter kind of everyday.',description:'An illustrative pair of wireless over-ear headphones, with soft cushions and a minimal finish. This sample shows how a product detail view will look.',isNew:true},
+  {id:'lamp',name:'Arc Table Lamp',category:'Home',price:64,color:'#e8decf',summary:'A warm glow for your corner.',description:'A sculptural table lamp with a warm brass-inspired finish. A sample piece for the spaces where you read, work, and unwind.',isNew:true},
+  {id:'backpack',name:'Everyday Backpack',category:'Accessories',price:72,color:'#d7e2da',summary:'Room for wherever you’re going.',description:'An understated sage backpack, illustrated with everyday organization in mind. This is a sample listing rather than a product available for sale.',isNew:true},
+  {id:'speaker',name:'Pocket Speaker',category:'Tech',price:49,color:'#d5dfeb',summary:'Little speaker. Good company.',description:'A compact, portable speaker concept in a soft blue finish. Explore this sample product and add it to the demo cart.',isNew:true},
+  {id:'watch',name:'Daylight Watch',category:'Accessories',price:115,color:'#e6ddd5',summary:'Make time for the little things.',description:'A simple watch concept with a warm neutral strap and a clean, easy-to-read face. All details and pricing are illustrative.',isNew:true},
+  {id:'bottle',name:'Daily Water Bottle',category:'Lifestyle',price:28,color:'#e8ddce',summary:'A small everyday essential.',description:'A reusable bottle concept in a soft sand finish. A sample everyday accessory for demonstrating the storefront.',isNew:true},
+  {id:'camera',name:'Weekend Camera',category:'Tech',price:189,color:'#d9dfdf',summary:'Keep the moments that matter.',description:'A retro-inspired camera concept in a muted green finish. This sample listing is here to help you explore the product browsing experience.',isNew:false},
+  {id:'sneakers',name:'Cloud Sneakers',category:'Lifestyle',price:95,color:'#dfdcec',summary:'A lighter step, every day.',description:'An illustrated pair of casual sneakers with soft lavender accents. Sample colors, details, and price are for demonstration only.',isNew:false}
 ];
-let revealAll = false;
-let toastTimeout;
-function toast(message){ $('#toast').textContent=message; $('#toast').classList.add('visible'); clearTimeout(toastTimeout); toastTimeout=setTimeout(()=>$('#toast').classList.remove('visible'),3500); }
-function renderSecrets(){
-  const query=$('#secret-search').value.trim().toLowerCase();
-  const filtered=demoSecrets.filter(secret=>secret.name.toLowerCase().includes(query));
-  $('#secret-count').textContent=`(${filtered.length})`;
-  const table=$('#secret-table'); table.replaceChildren();
-  if(!filtered.length){const empty=document.createElement('p');empty.className='empty-state';empty.textContent='No secrets found. Try another search.';table.append(empty);return;}
-  filtered.forEach(secret=>{
-    const row=document.createElement('div');row.className='secret-row';
-    const icon=document.createElement('span');icon.className='row-icon';icon.textContent='•••';icon.setAttribute('aria-hidden','true');
-    const name=document.createElement('code');name.textContent=secret.name;name.title=secret.name;
-    const type=document.createElement('span');type.className='secret-type';type.textContent=secret.type;
-    const value=document.createElement('button');value.className=`secret-value${revealAll?'':' masked'}`;value.textContent=revealAll?secret.value:'••••••••••••';value.setAttribute('aria-label',`${revealAll?'Hide':'Reveal'} ${secret.name} demo value`);value.setAttribute('aria-pressed',String(revealAll));
-    value.addEventListener('click',()=>{const revealed=value.getAttribute('aria-pressed')!=='true';value.textContent=revealed?secret.value:'••••••••••••';value.classList.toggle('masked',!revealed);value.setAttribute('aria-pressed',String(revealed));value.setAttribute('aria-label',`${revealed?'Hide':'Reveal'} ${secret.name} demo value`);});
-    const more=document.createElement('span');more.className='row-menu';more.textContent='···';more.setAttribute('aria-hidden','true');
-    row.append(icon,name,type,value,more);table.append(row);
-  });
+function findProducts(query,category){const term=query.trim().toLowerCase();return products.filter(product=>(category==='All'||product.category===category)&&`${product.name} ${product.category} ${product.summary}`.toLowerCase().includes(term));}
+const $=selector=>document.querySelector(selector);
+const $$=selector=>[...document.querySelectorAll(selector)];
+const money=value=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(value);
+const cart=new Map();
+let selectedCategory='All';
+let selectedProduct;
+let toastTimer;
+function toast(message){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('visible'),3000);}
+function createCard(product,isNew=false){
+  const li=document.createElement('li');li.className='product-card';
+  const button=document.createElement('button');button.className='product-open';button.setAttribute('aria-label',`View ${product.name}, ${money(product.price)}`);
+  const art=document.createElement('div');art.className='product-art';art.style.setProperty('--card-color',product.color);
+  const image=document.createElement('img');image.src=`assets/products/${product.id}.svg`;image.alt=`Illustration of ${product.name}`;image.width=400;image.height=380;image.loading='lazy';image.decoding='async';
+  const tag=document.createElement('span');tag.className='card-tag';tag.textContent=isNew?'JUST ADDED':product.category.toUpperCase();
+  const arrow=document.createElement('span');arrow.className='card-arrow';arrow.textContent='↗';arrow.setAttribute('aria-hidden','true');art.append(image,tag,arrow);
+  const meta=document.createElement('div');meta.className='product-meta';const category=document.createElement('span');category.className='product-category';category.textContent=product.category;const sample=document.createElement('span');sample.className='sample-label';sample.textContent='Sample product';meta.append(category,sample);
+  const titleLine=document.createElement('div');titleLine.className='product-title-line';const title=document.createElement('h3');title.textContent=product.name;const price=document.createElement('span');price.className='product-price';price.textContent=money(product.price);titleLine.append(title,price);
+  const summary=document.createElement('p');summary.className='product-summary';summary.textContent=product.summary;button.append(art,meta,titleLine,summary);button.addEventListener('click',()=>openProduct(product));li.append(button);return li;
 }
-$('#secret-search').addEventListener('input',renderSecrets);
-$('#reveal-all').addEventListener('click',()=>{revealAll=!revealAll;$('#reveal-all').setAttribute('aria-pressed',String(revealAll));$('#reveal-all').setAttribute('aria-label',`${revealAll?'Hide':'Reveal'} demo values`);renderSecrets();});
-$('#environment').addEventListener('change',event=>{toast(`Switched to ${event.target.value}. This workspace uses sample data.`);});
-const info={
-  solutions:['One place for your workflow','Organize sample configuration into development, staging, and production environments. Explore the workspace below to see how a single source of configuration can simplify a team’s workflow.'],
-  resources:['A quick way to get oriented','Try searching for DATABASE_URL, switch environments, or reveal a sample value. Use “Take a Tour” for a three-step walkthrough. This is an interactive design concept, with no live infrastructure connected.'],
-  pricing:['Free to explore','This Scorpion concept is a free, interactive preview. There are no paid plans, subscriptions, or payment details to enter. Explore the sample workspace and see the design in action.'],
-  signin:['You’re already in the demo','No account is needed to explore this concept. Authentication and a live secrets service are not connected. All values shown are illustrative and any changes reset when you refresh.'],
-  integrations:['Your tools, working together','The Integrations tab illustrates a workspace designed around GitHub, Vercel, Docker, and AWS. These example connections are visual previews; no external accounts are connected.'],
-  access:['Access with a little more clarity','The Access tab shows sample workspace roles. A real implementation could give developers access to specific projects and environments. This preview does not grant or change permissions.'],
-  compare:['See what changes between environments','Use the environment selector to explore the interface. A production implementation could compare development and production configurations here. This demo uses the same sample values in each environment.'],
-  webhooks:['Keep your workflow in sync','Webhooks can notify your applications when configuration changes. This concept shows where that workflow would live; no webhook endpoints are configured or called.'],
-  logs:['A clear view of workspace activity','Select the Logs tab for sample activity, including environment synchronization and credential rotation. These entries are illustrative rather than live audit events.'],
-  tokens:['A place for service access','Service tokens would allow applications to retrieve configuration. This design concept does not create, store, or display real access tokens.'],
-  rotation:['Fresh credentials, less manual work','The preview illustrates a credential rotation schedule. The AWS_USER card is sample data; no credentials or external services are connected, and no rotation takes place.']
-};
-function openInfo(key){const [title,description]=info[key];$('#info-title').textContent=title;$('#info-content').replaceChildren();const p=document.createElement('p');p.textContent=description;$('#info-content').append(p);$('#info-dialog').showModal();}
-$$('[data-info]').forEach(button=>button.addEventListener('click',()=>{closeMenu();openInfo(button.dataset.info);}));
-$$('dialog').forEach(dialog=>{dialog.querySelector('.close-dialog').addEventListener('click',()=>dialog.close());dialog.addEventListener('click',event=>{if(event.target===dialog){const bounds=dialog.getBoundingClientRect();if(event.clientX<bounds.left||event.clientX>bounds.right||event.clientY<bounds.top||event.clientY>bounds.bottom)dialog.close();}});});
+function renderRecommendations(){const query=$('#product-search').value;const matches=findProducts(query,selectedCategory);const shelf=$('#recommended-products');shelf.replaceChildren(...matches.map(product=>createCard(product)));shelf.scrollLeft=0;shelf.hidden=matches.length===0;$('#empty-state').hidden=matches.length!==0;$('#search-status').textContent=query.trim()||selectedCategory!=='All'?`${matches.length} product${matches.length===1?'':'s'} found${selectedCategory!=='All'?` in ${selectedCategory}`:''}`:'';updateArrows(shelf);}
+function openProduct(product){selectedProduct=product;$('#product-title').textContent=product.name;$('#detail-category').textContent=product.category;$('#detail-description').textContent=product.description;$('#detail-price').textContent=money(product.price);const image=document.createElement('img');image.src=`assets/products/${product.id}.svg`;image.alt=`Illustration of ${product.name}`;image.width=400;image.height=380;$('#detail-art').style.setProperty('--card-color',product.color);$('#detail-art').replaceChildren(image);$('#product-dialog').showModal();}
+function updateCartCount(){$('#cart-count').textContent=[...cart.values()].reduce((sum,quantity)=>sum+quantity,0);}
+function renderCart(){const container=$('#cart-items');container.replaceChildren();let total=0;if(!cart.size){const p=document.createElement('p');p.textContent='Your cart is empty. Explore the products and add a sample item to try it out.';container.append(p);$('#cart-total').replaceChildren();return;}cart.forEach((quantity,id)=>{const product=products.find(item=>item.id===id);total+=product.price*quantity;const row=document.createElement('div');row.className='cart-item';row.style.setProperty('--card-color',product.color);const image=document.createElement('img');image.src=`assets/products/${id}.svg`;image.alt='';const copy=document.createElement('div');const title=document.createElement('strong');title.textContent=product.name;const detail=document.createElement('p');detail.textContent=`${quantity} × ${money(product.price)}`;copy.append(title,detail);const remove=document.createElement('button');remove.textContent='Remove';remove.setAttribute('aria-label',`Remove ${product.name} from cart`);remove.addEventListener('click',()=>{cart.delete(id);updateCartCount();renderCart();const next=$('#cart-items button')||$('#cart-dialog [data-close]');next.focus();toast(`${product.name} removed from your demo cart.`);});row.append(image,copy,remove);container.append(row);});const label=document.createElement('span');label.textContent='Demo total';const amount=document.createElement('strong');amount.textContent=money(total);$('#cart-total').replaceChildren(label,amount);}
+$('#cart-link').addEventListener('click',()=>{renderCart();$('#cart-dialog').showModal();});
+$('#add-to-cart').addEventListener('click',()=>{if(!selectedProduct)return;cart.set(selectedProduct.id,(cart.get(selectedProduct.id)||0)+1);updateCartCount();$('#product-dialog').close();toast(`${selectedProduct.name} added to your demo cart.`);});
+$$('[data-page]').forEach(button=>button.addEventListener('click',()=>{const contact=button.dataset.page==='contact';$('#page-title').textContent=contact?'Contact Info':'About';$('#page-description').textContent=contact?'Contact details will be added when the store information is ready. This page’s design will follow later.':'The store name, story, and About page design are coming later. For now, explore the sample products on the homepage.';$('#page-dialog').showModal();}));
+$$('dialog').forEach(dialog=>{dialog.querySelector('.close-dialog').addEventListener('click',()=>dialog.close());dialog.addEventListener('click',event=>{if(event.target!==dialog)return;const rect=dialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)dialog.close();});});
 $$('[data-close]').forEach(button=>button.addEventListener('click',()=>button.closest('dialog').close()));
-const menuButton=$('.menu-toggle');
-function closeMenu(){menuButton.setAttribute('aria-expanded','false');menuButton.setAttribute('aria-label','Open navigation');$('#navigation').classList.remove('open');}
-menuButton.addEventListener('click',()=>{const expanded=menuButton.getAttribute('aria-expanded')!=='true';menuButton.setAttribute('aria-expanded',String(expanded));menuButton.setAttribute('aria-label',`${expanded?'Close':'Open'} navigation`);$('#navigation').classList.toggle('open',expanded);});
-$$('nav a').forEach(link=>link.addEventListener('click',closeMenu));
-document.addEventListener('keydown',event=>{if(event.key==='Escape')closeMenu();});
-function selectTab(name,focus=false){$$('[data-tab]').forEach(button=>{const active=button.dataset.tab===name;button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1;$(`#panel-${button.dataset.tab}`).hidden=!active;if(active&&focus)button.focus();});}
-$$('[data-tab]').forEach((button,index,tabs)=>{button.addEventListener('click',()=>selectTab(button.dataset.tab));button.addEventListener('keydown',event=>{let target=index;if(event.key==='ArrowRight')target=(index+1)%tabs.length;else if(event.key==='ArrowLeft')target=(index+tabs.length-1)%tabs.length;else if(event.key==='Home')target=0;else if(event.key==='End')target=tabs.length-1;else return;event.preventDefault();selectTab(tabs[target].dataset.tab,true);});});
-function explore(){closeMenu();selectTab('secrets');$('#workspace').scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'center'});$('#secret-search').focus({preventScroll:true});toast('Welcome to the demo. Search, reveal, or add a sample secret.');}
-$$('[data-explore]').forEach(button=>button.addEventListener('click',explore));
-$('.global-search').addEventListener('click',explore);
-document.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k'&&!document.querySelector('dialog[open]')){event.preventDefault();explore();}});
-const tour=[
-  {title:'Your secrets. One home.',description:'Bring environment variables into a single workspace. In the preview, search for a variable and click its hidden value to reveal the sample data.',example:'backend / dev\n\nDATABASE_URL       ••••••••••\nFEATURE_FLAG       ••••••••••'},
-  {title:'Every environment, in order.',description:'Use the environment selector to move between development, staging, and production. This demo keeps the same sample values so you can explore safely.',example:'⑂ dev\n⑂ staging\n⑂ production'},
-  {title:'A calmer way to work.',description:'Explore integrations, team roles, and activity using the workspace tabs. You can also add a made-up secret; it stays in memory until you refresh.',example:'1. Search a secret\n2. Reveal a demo value\n3. Try adding your own example'}
-];
-let tourIndex=0;
-function renderTour(){const step=tour[tourIndex];$('#tour-step-number').textContent=`0${tourIndex+1} / 03`;$('#tour-title').textContent=step.title;$('#tour-description').textContent=step.description;$('#tour-example').textContent=step.example;$('#tour-back').disabled=tourIndex===0;$('#tour-next').textContent=tourIndex===2?'Explore workspace →':'Next →';$$('.tour-progress i').forEach((segment,index)=>segment.classList.toggle('current',index<=tourIndex));}
-$$('[data-tour]').forEach(button=>button.addEventListener('click',()=>{closeMenu();tourIndex=0;renderTour();$('#tour-dialog').showModal();}));
-$('#tour-next').addEventListener('click',()=>{if(tourIndex===2){$('#tour-dialog').close();explore();}else{tourIndex++;renderTour();}});
-$('#tour-back').addEventListener('click',()=>{if(tourIndex>0){tourIndex--;renderTour();}});
-function openSecretForm(){$('#secret-form').reset();$('#new-secret-name').setCustomValidity('');$('#secret-dialog').showModal();}
-$('#add-secret').addEventListener('click',openSecretForm);$('#add-secret-bottom').addEventListener('click',openSecretForm);
-$('#new-secret-name').addEventListener('input',()=>$('#new-secret-name').setCustomValidity(''));
-$('#secret-form').addEventListener('submit',event=>{event.preventDefault();const name=$('#new-secret-name').value.toUpperCase();if(demoSecrets.some(secret=>secret.name===name)){$('#new-secret-name').setCustomValidity('That name already exists. Choose a different demo name.');$('#new-secret-name').reportValidity();return;}demoSecrets.push({name,type:'String',value:$('#new-secret-value').value});$('#secret-search').value='';renderSecrets();$('#secret-dialog').close();toast(`${name} added to this demo session.`);});
-renderSecrets();
+$$('[data-category]').forEach(button=>button.addEventListener('click',()=>{selectedCategory=button.dataset.category;$$('[data-category]').forEach(item=>{const active=item===button;item.classList.toggle('active',active);item.setAttribute('aria-pressed',String(active));});renderRecommendations();}));
+$('#product-search').addEventListener('input',renderRecommendations);
+$('#reset-search').addEventListener('click',()=>{$('#product-search').value='';$('[data-category="All"]').click();$('#product-search').focus();});
+function updateArrows(shelf){$$(`[data-scroll="${shelf.id}"]`).forEach(button=>{button.disabled=shelf.hidden||(button.dataset.direction==='-1'?shelf.scrollLeft<=2:shelf.scrollLeft+shelf.clientWidth>=shelf.scrollWidth-2);});}
+$$('[data-scroll]').forEach(button=>button.addEventListener('click',()=>{const shelf=document.getElementById(button.dataset.scroll);const card=shelf.querySelector('.product-card');const distance=card?card.getBoundingClientRect().width+parseFloat(getComputedStyle(shelf).gap):280;shelf.scrollBy({left:Number(button.dataset.direction)*distance,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});}));
+$$('.product-shelf').forEach(shelf=>{shelf.addEventListener('scroll',()=>updateArrows(shelf),{passive:true});shelf.addEventListener('keydown',event=>{if(event.target!==shelf||!['ArrowLeft','ArrowRight'].includes(event.key))return;event.preventDefault();shelf.scrollBy({left:event.key==='ArrowRight'?280:-280,behavior:'auto'});});});
+window.addEventListener('resize',()=>$$('.product-shelf').forEach(updateArrows));
+window.addEventListener('load',()=>$$('.product-shelf').forEach(updateArrows));
+document.addEventListener('keydown',event=>{if(event.key==='/'&&!['INPUT','TEXTAREA'].includes(document.activeElement.tagName)&&!document.querySelector('dialog[open]')){event.preventDefault();$('#product-search').focus();}});
+$('#year').textContent=new Date().getFullYear();
+$('#new-products').replaceChildren(...products.filter(product=>product.isNew).map(product=>createCard(product,true)));
+renderRecommendations();
+updateArrows($('#new-products'));
