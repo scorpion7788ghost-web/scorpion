@@ -2,10 +2,11 @@ window.customerReady=(async()=>{
 await Store.ready;
 reloadProducts();
 "use strict";
+function stockLimit(product){return Math.max(0,Math.min(99,Number.isInteger(product?.stock)?product.stock:0));}
 function sanitizeCart(value){
   if(!value||typeof value!=='object'||Array.isArray(value))return {};
   const valid={};
-  for(const product of products){const count=value[product.id];if(Number.isInteger(count)&&count>0)valid[product.id]=Math.min(count,99);}
+  for(const product of products){const count=value[product.id],limit=stockLimit(product);if(Number.isInteger(count)&&count>0&&limit>0)valid[product.id]=Math.min(count,limit);}
   return valid;
 }
 function wheelMovement(event,shelf){
@@ -23,6 +24,7 @@ const customerId=Store.auth.current('customer')?.id;
 const cartKey='lk-guest-cart-v1';
 let cart={};
 let storageAvailable=true;
+let cartBusy=false;
 if(customerId)cart=sanitizeCart(Store.getCart());else try{cart=sanitizeCart(JSON.parse(localStorage.getItem(cartKey)||'{}'));}catch{cart={};}
 let selectedCategory='All';
 let toastTimer;
@@ -82,7 +84,8 @@ function initializeProduct(){
   if(product.stock===0){$('#add-to-cart').disabled=true;$('#add-to-cart').textContent='Out of stock';}
   if(product.isCustom){$('.product-badge').textContent='SELLER COLLECTION';$('.price-caption').textContent='Price in USD';}
   const quantity=$('#product-quantity');
-  function normalizeQuantity(){const value=Number(quantity.value);quantity.value=Number.isFinite(value)?Math.max(1,Math.min(99,Math.floor(value))):1;$('#quantity-down').disabled=Number(quantity.value)<=1;$('#quantity-up').disabled=Number(quantity.value)>=99;return Number(quantity.value);}
+  const quantityMax=Math.max(1,stockLimit(product));quantity.max=String(quantityMax);
+  function normalizeQuantity(){const value=Number(quantity.value);quantity.value=Number.isFinite(value)?Math.max(1,Math.min(quantityMax,Math.floor(value))):1;$('#quantity-down').disabled=Number(quantity.value)<=1;$('#quantity-up').disabled=Number(quantity.value)>=quantityMax;return Number(quantity.value);}
   quantity.addEventListener('change',normalizeQuantity);
   $('#quantity-down').addEventListener('click',()=>{quantity.value=normalizeQuantity()-1;normalizeQuantity();});
   $('#quantity-up').addEventListener('click',()=>{quantity.value=normalizeQuantity()+1;normalizeQuantity();});
@@ -93,8 +96,11 @@ function initializeProduct(){
   $('#related-section').hidden=false;
 }
 async function changeCart(id,quantity,focusAction){
-  if(quantity<=0)delete cart[id];else cart[id]=Math.min(99,quantity);
-  await saveCart();renderCart();
+  if(cartBusy)return;cartBusy=true;
+  const limit=stockLimit(products.find(product=>product.id===id));
+  if(quantity<=0||limit===0)delete cart[id];else cart[id]=Math.min(limit,quantity);
+  renderCart();
+  try{await saveCart();}finally{cartBusy=false;renderCart();}
   const target=$(`[data-cart-id="${id}"][data-action="${focusAction}"]:not(:disabled)` )||$('#cart-items button:not(:disabled)')||$('#cart-empty a');
   target?.focus({preventScroll:true});
 }
@@ -111,11 +117,11 @@ function renderCart(){
     const image=element('img');image.src=productImage(product);image.alt='';image.width=100;image.height=100;art.append(image);
     const copy=element('div','cart-product-copy');const category=element('p','eyebrow',product.category);const title=element('a','cart-product-title',product.name);title.href=art.href;const price=element('p','cart-unit-price',`${money(product.price)} each`);copy.append(category,title,price);
     const controls=element('div','cart-product-actions');const stepper=element('div','quantity-control');
-    const minus=element('button','', '-');minus.setAttribute('aria-label',`Decrease ${product.name} quantity`);minus.dataset.cartId=id;minus.dataset.action='minus';minus.addEventListener('click',()=>changeCart(id,quantity-1,'minus'));
+    const minus=element('button','', '-');minus.setAttribute('aria-label',`Decrease ${product.name} quantity`);minus.dataset.cartId=id;minus.dataset.action='minus';minus.disabled=cartBusy;minus.addEventListener('click',()=>changeCart(id,quantity-1,'minus'));
     const count=element('span','',String(quantity));count.setAttribute('aria-label',`Quantity ${quantity}`);
-    const plus=element('button','', '+');plus.setAttribute('aria-label',`Increase ${product.name} quantity`);plus.dataset.cartId=id;plus.dataset.action='plus';plus.disabled=quantity>=99;plus.addEventListener('click',()=>changeCart(id,quantity+1,'plus'));
+    const plus=element('button','', '+');plus.setAttribute('aria-label',`Increase ${product.name} quantity`);plus.dataset.cartId=id;plus.dataset.action='plus';plus.disabled=cartBusy||quantity>=stockLimit(product);plus.addEventListener('click',()=>changeCart(id,quantity+1,'plus'));
     stepper.append(minus,count,plus);
-    const remove=element('button','remove-item','Remove');remove.setAttribute('aria-label',`Remove ${product.name} from cart`);remove.dataset.cartId=id;remove.dataset.action='remove';remove.addEventListener('click',async()=>{await changeCart(id,0,'remove');});
+    const remove=element('button','remove-item','Remove');remove.setAttribute('aria-label',`Remove ${product.name} from cart`);remove.dataset.cartId=id;remove.dataset.action='remove';remove.disabled=cartBusy;remove.addEventListener('click',async()=>{await changeCart(id,0,'remove');});
     controls.append(stepper,remove);
     const lineTotal=element('strong','cart-line-total',money(product.price*quantity));
     row.append(art,copy,controls,lineTotal);container.append(row);

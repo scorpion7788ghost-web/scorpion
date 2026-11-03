@@ -72,7 +72,14 @@
    const shop=shops.find(s=>s.id===user.id);if(!shop)throw new Error('Your seller store record is missing.');
    sellerStore={profile:shop.profile,products:owned.map(row=>row.data),orders:[],drafts:Object.fromEntries(drafts.map(row=>[row.draft_key,row.data]))};
   }
-  if(user?.role==='customer'){const saved=await rows('lk_carts','select=items');cart=saved[0]?.items||{};}
+  if(user?.role==='customer'){
+   const saved=await rows('lk_carts','select=items');
+   const available=new Map(products.map(product=>[product.id,product]));
+   for(const [id,quantity] of Object.entries(saved[0]?.items||{})){
+    const product=available.get(id);
+    if(product&&Number.isInteger(quantity)&&quantity>0&&product.stock>0)cart[id]=Math.min(99,quantity,product.stock);
+   }
+  }
   return {portal:role,user,stores,products,sellerStore,cart,orders:[],csrf:'',customerUrl:config.customerUrl,sellerUrl:config.sellerUrl};
  }
  async function request(path,method='GET',data={}){

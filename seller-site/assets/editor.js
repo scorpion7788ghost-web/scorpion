@@ -12,6 +12,8 @@
   let imageBusy = false;
   let imageSequence = 0;
   let saved = false;
+  let requestBusy = false;
+  let lockedControls = [];
   const fields = {name:$('#new-name'),category:$('#new-category'),price:$('#new-price'),summary:$('#new-summary'),description:$('#new-description'),sku:$('#new-sku'),stock:$('#new-stock'),status:$('#new-status')};
   function showError(message){$('#editor-error').textContent=message;$('#editor-error').hidden=!message;}
   function values(){return {name:fields.name.value.trim(),category:fields.category.value,price:fields.price.value,summary:fields.summary.value.trim(),description:fields.description.value.trim(),color:form.querySelector('[name="color"]:checked').value,isNew:$('#new-is-new').checked,image:uploadedImage,imageName:uploadedName,sku:fields.sku.value.trim(),stock:fields.stock.value,status:fields.status.value};}
@@ -36,7 +38,13 @@
   function markChanged(){if(saved){saved=false;$('#save-product').disabled=false;$('#save-product').textContent=editingId?'Save changes':'Add product +';$('#editor-success').hidden=true;}showError('');$('#draft-status').textContent='Unsaved changes';preview();}
   form.addEventListener('input',markChanged);
   form.addEventListener('change',preview);
-  function busy(value){imageBusy=value;$('#save-product').disabled=value||saved;$('#save-draft').disabled=value;$('#image-dropzone').classList.toggle('processing',value);}
+  function busy(value){imageBusy=value;$('#save-product').disabled=value||saved||requestBusy;$('#save-draft').disabled=value||requestBusy;$('#image-dropzone').classList.toggle('processing',value);}
+  function lockEditor(value){
+    requestBusy=value;
+    if(value){lockedControls=[...form.querySelectorAll('input,select,textarea,button')].map(node=>[node,node.disabled]);lockedControls.forEach(([node])=>{node.disabled=true;});}
+    else{lockedControls.forEach(([node,disabled])=>{node.disabled=disabled;});lockedControls=[];}
+    busy(imageBusy);
+  }
   async function loadImage(file){
     if(!file)return;
     $('#image-error').textContent='';
@@ -68,14 +76,15 @@
   zone.addEventListener('drop',event=>{event.preventDefault();zone.classList.remove('drag-active');if(event.dataTransfer.files.length>1){$('#image-error').textContent='Please choose one product image at a time.';return;}loadImage(event.dataTransfer.files[0]);});
   $('#remove-image').addEventListener('click',()=>{imageSequence++;uploadedImage='';uploadedName='';$('#new-image').value='';$('#image-error').textContent='';busy(false);markChanged();});
   $('#save-draft').addEventListener('click',async()=>{
-    if(imageBusy)return;
-    try{await Store.db.saveDraft(sellerUser.id,draftKey,values());$('#draft-status').textContent='Draft saved to your seller account. Come back whenever you are ready.';showError('');}
+    if(imageBusy||requestBusy)return;const input=values();lockEditor(true);
+    try{await Store.db.saveDraft(sellerUser.id,draftKey,input);$('#draft-status').textContent='Draft saved to your seller account. Come back whenever you are ready.';showError('');}
     catch(error){showError(error.message);}
+    finally{lockEditor(false);}
   });
   form.addEventListener('submit',async event=>{
-    event.preventDefault();if(imageBusy||saved)return;showError('');
+    event.preventDefault();if(imageBusy||saved||requestBusy)return;showError('');const input=values();lockEditor(true);
     try{
-      const product=await Store.db.saveProduct(sellerUser.id,values(),editingId||undefined);
+      const product=await Store.db.saveProduct(sellerUser.id,input,editingId||undefined);
       refreshSeller();
       saved=true;$('#save-product').disabled=true;$('#save-product').textContent=editingId?'Changes saved':'Product added';
       $('#view-created-product').href='shop.html?id='+encodeURIComponent(sellerUser.id)+'&product='+encodeURIComponent(product.id);
@@ -83,6 +92,7 @@
       $('#editor-success').hidden=false;$('#draft-status').textContent='Saved to your seller account and visible in the customer store when active.';preview();
       $('#editor-success').scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'center'});
     }catch(error){showError(error.message);}
+    finally{lockEditor(false);}
   });
   Object.values(fields).forEach(field=>field.addEventListener('input',()=>field.setCustomValidity('')));
   $('#add-another').addEventListener('click',()=>{if(editingId){location.assign('add-product.html');return;}imageSequence++;form.reset();uploadedImage='';uploadedName='';saved=false;busy(false);$('#editor-success').hidden=true;$('#save-product').textContent=editingId?'Save changes':'Add product +';$('#draft-status').textContent='';$('#image-error').textContent='';showError('');preview();fields.name.focus();});

@@ -52,6 +52,15 @@ async function main(){
  const profileFailure=app({role:'seller',storage,handler:(url,options)=>url.includes('/rpc/lk_update_account')?{status:503,body:{message:'Profile temporarily unavailable'}}:server(url,options)});
  await assert.rejects(profileFailure.cloud.request('/me','PATCH',{name:'Updated',email:'',currentPassword:'ValidPassword123!',password:'ChangedPassword123!'}),/Your password changed, but your profile details could not be saved/);
  const failed=app({handler:()=>{throw new TypeError('network')}});await assert.rejects(failed.cloud.request('/bootstrap'),/Cannot reach online storage/);
+ const buyerStorage=new Map([['lk-auth-v2:https://isolated-check.supabase.co:customer',JSON.stringify({access_token:'buyer-access',refresh_token:'buyer-refresh',expires_at:Date.now()/1000+3600})]]);
+ const stockChanged=app({storage:buyerStorage,handler:(url,options)=>{
+  if(url.includes('/lk_profiles'))return {body:[{id:'customer_owned',role:'customer',username:'buyer',name:'Buyer',email:''}]};
+  if(url.includes('/lk_products'))return {body:[{data:{id:'product_live',stock:2}},{data:{id:'product_empty',stock:0}}]};
+  if(url.includes('/lk_carts'))return {body:[{items:{product_live:8,product_empty:1,product_removed:3}}]};
+  if(url.includes('/lk_shops'))return {body:[]};
+  return server(url,options);
+ }});
+ const buyerState=await stockChanged.cloud.request('/bootstrap');assert.equal(buyerState.cart.product_live,2);assert.equal(Object.keys(buyerState.cart).length,1,'Stored carts follow current stock and active listings');
  const needsConfirm=app({handler:()=>({body:{mailer_autoconfirm:false,external:{email:true}}})});
  await assert.rejects(needsConfirm.cloud.request('/auth/register','POST',{role:'customer',name:'Name',username:'new_buyer',password:'ValidPassword123!'}),/Confirm email off/);
  assert(!needsConfirm.calls.some(call=>call.url.endsWith('/signup')),'Incorrect Auth configuration must be rejected before creating records');

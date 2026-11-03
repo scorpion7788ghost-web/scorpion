@@ -4,7 +4,7 @@ A separate seller website for LK Tech Store, with shared online accounts and pro
 
 There are no demo accounts, sample products, or hardcoded orders. Register a new seller account to start an empty store. Each seller has a unique public page, inventory management, product editing, server-saved drafts, store settings, and account settings.
 
-The new hosted option connects directly to Supabase from GitHub Pages. Set the Project URL and publishable key in `assets/store-config.js`, using the same project as the customer website. It remains unconnected until the project, schema, and authentication settings are configured. Never add a Supabase secret or service_role key to browser JavaScript.
+This website connects directly to Supabase from GitHub Pages using the same project as the customer website. The Project URL and public publishable key are configured in `assets/store-config.js`, and the public catalog responds successfully. Username registration requires the Email provider to be enabled with **Confirm email off**. Never add a Supabase secret or service_role key to browser JavaScript.
 
 Follow the [Supabase setup guide](https://github.com/scorpion7788ghost-web/scorpion/blob/master/SUPABASE-SETUP.md) in the customer/source repository. The original PHP API and private GitHub JSON storage remain available for local development or PHP hosting:
 

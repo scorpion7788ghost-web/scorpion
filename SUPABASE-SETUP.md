@@ -2,7 +2,7 @@
 
 This option keeps both websites on GitHub Pages. Supabase provides managed password authentication and a hosted Postgres database; no PHP host, Render service, Docker build, or private GitHub write token is required.
 
-**The integration is prepared, but it is not connected until your Supabase project is configured.** The website reports missing configuration rather than pretending to save accounts. There are no sample users or products. Existing PHP/GitHub records are not automatically migrated; keep any existing data until a deliberate migration is complete.
+Both website configurations now point to the same Supabase project. The live public catalog is reachable. Username registration also requires the Authentication settings in step 3; a valid URL and key alone do not enable it. There are no sample users or products. Existing PHP/GitHub records are not automatically migrated; keep any existing data until a deliberate migration is complete.
 
 ## 1. Create a project
 
@@ -35,7 +35,7 @@ Paste the URL and key into these two files, with identical values:
 - `assets/store-config.js`
 - `seller-site/assets/store-config.js`
 
-Replace the empty `supabaseUrl` and `supabaseKey` strings. Keep `provider` as configured: GitHub Pages uses Supabase; the local PHP sites continue using their existing backend. To test Supabase locally, explicitly set `provider: 'supabase'` in your local configuration. Both websites must use the same Supabase project to share the catalog.
+When connecting a different project, update `supabaseUrl` and `supabaseKey` in both files. Use the project root URL, such as `https://your-project.supabase.co`, without `/rest/v1/` or `/auth/v1/`. Keep `provider` as configured: GitHub Pages uses Supabase; the local PHP sites continue using their existing backend. To test Supabase locally, explicitly set `provider: 'supabase'` in your local configuration. Both websites must use the same Supabase project to share the catalog.
 
 Alternatively, send the **Project URL and publishable/anon key** to the coding agent after completing steps 1–3 so it can connect and publish the configuration. Do not send private credentials.
 
@@ -56,6 +56,6 @@ Supabase applies its own authentication and API limits. Public-key access is pro
 
 ## Validation limits
 
-The adapter has local protocol/error/session tests, and existing page and PHP checks still run. A Supabase project is not available in the development environment, so hosted sign-up, PostgreSQL execution, and actual database access rules must be verified after project setup. `supabase/verify-access.sql` supplies the database check; local mocked responses do not prove hosted security or connectivity.
+The adapter has local protocol/error/session tests, and the page, cart, seller editor, and PHP checks pass. Live read-only checks confirmed that the configured Supabase project serves the public catalog and rejects anonymous access to private profiles. No test users or products were added to the live database. Authenticated registration, saving, and cross-seller isolation still need live verification with real accounts. `supabase/verify-access.sql` supplies the database check; local mocked responses do not prove hosted security or connectivity.
 
 Official documentation: [Auth signup](https://supabase.com/docs/reference/javascript/auth-signup), [profile triggers](https://supabase.com/docs/guides/auth/managing-user-data), [Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security), and [public versus secret keys](https://supabase.com/docs/guides/api/api-keys).

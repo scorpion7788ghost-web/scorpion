@@ -4,7 +4,7 @@ The customer store and **Seller Site** are separate websites with separate custo
 
 ## Shared storage directly from GitHub Pages
 
-The new [Supabase setup](SUPABASE-SETUP.md) uses hosted authentication and database records without PHP or Render. Create the project, run `supabase/schema.sql`, configure username authentication, and enter its Project URL and public publishable key in both copies of `assets/store-config.js`. The project is not connected yet; the browser reports missing configuration until those values are supplied.
+The [Supabase setup](SUPABASE-SETUP.md) uses hosted authentication and database records without PHP or Render. Both copies of `assets/store-config.js` now connect to the same project, and its public catalog responds successfully. Username registration requires the Email provider to be enabled with **Confirm email off**; see the setup guide for the remaining authentication settings and account checks.
 
 The existing local PHP/GitHub-file option remains available below. Existing records are not automatically moved between backends.
 
