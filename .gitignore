@@ -1,0 +1,28 @@
+# Local PHP settings and scratch repository
+/.php/
+/git-test/
+
+# Dependencies and generated assets
+**/node_modules/
+**/vendor/
+
+# Local environment files and credentials
+.env
+.env.*
+!.env.example
+auth.json
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local databases, logs, and editor/OS files
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.db
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
