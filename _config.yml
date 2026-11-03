@@ -1,0 +1,7 @@
+exclude:
+  - seller-site
+  - laravel-site
+  - tools
+  - tests
+  - SELLER-SITE.md
+  - AGENTS.md

@@ -26,3 +26,10 @@ auth.json
 Thumbs.db
 .idea/
 .vscode/
+
+# Local verification dependencies
+/.qa/
+
+# Python check artifacts
+__pycache__/
+*.pyc

@@ -1,15 +1,19 @@
 'use strict';
 (() => {
+  if(!sellerUser)return;
   const form = $('#add-product-form');
-  const draftKey = 'sl-tech-store-product-draft-v1';
+  const editingId=new URLSearchParams(location.search).get('id');
+  const editingProduct=editingId?sellerStore.products.find(p=>p.id===editingId):null;
+  if(editingId&&!editingProduct){form.replaceChildren(el('p','form-error','That product does not belong to your store, or it no longer exists.'));$('.preview-column').hidden=true;return;}
+  const draftKey = 'lk-demo-product-draft:'+sellerUser.id+(editingId?':'+editingId:'');
   let uploadedImage = '';
   let uploadedName = '';
   let imageBusy = false;
   let imageSequence = 0;
   let saved = false;
-  const fields = {name:$('#new-name'),category:$('#new-category'),price:$('#new-price'),summary:$('#new-summary'),description:$('#new-description')};
+  const fields = {name:$('#new-name'),category:$('#new-category'),price:$('#new-price'),summary:$('#new-summary'),description:$('#new-description'),sku:$('#new-sku'),stock:$('#new-stock'),status:$('#new-status')};
   function showError(message){$('#editor-error').textContent=message;$('#editor-error').hidden=!message;}
-  function values(){return {name:fields.name.value.trim(),category:fields.category.value,price:fields.price.value,summary:fields.summary.value.trim(),description:fields.description.value.trim(),color:form.querySelector('[name="color"]:checked').value,isNew:$('#new-is-new').checked,image:uploadedImage,imageName:uploadedName};}
+  function values(){return {name:fields.name.value.trim(),category:fields.category.value,price:fields.price.value,summary:fields.summary.value.trim(),description:fields.description.value.trim(),color:form.querySelector('[name="color"]:checked').value,isNew:$('#new-is-new').checked,image:uploadedImage,imageName:uploadedName,sku:fields.sku.value.trim(),stock:fields.stock.value,status:fields.status.value};}
   function preview(){
     const data=values();
     $('#preview-name').textContent=data.name||'Your next good find';
@@ -26,9 +30,9 @@
     $('#description-count').textContent=`${fields.description.value.length} / 2000`;
     $('#uploaded-image-info').hidden=!uploadedImage;
     $('#uploaded-image-name').textContent=uploadedName||'Product image';
-    $('#custom-product-count').textContent=`${getSavedProducts().length} product${getSavedProducts().length===1?'':'s'} added`;
+    $('#custom-product-count').textContent=`${StoreDemo.db.requireSeller(sellerUser.id).products.length} product${StoreDemo.db.requireSeller(sellerUser.id).products.length===1?'':'s'} added`;
   }
-  function markChanged(){if(saved){saved=false;$('#save-product').disabled=false;$('#save-product').textContent='Add product +';$('#editor-success').hidden=true;}showError('');$('#draft-status').textContent='Unsaved changes';preview();}
+  function markChanged(){if(saved){saved=false;$('#save-product').disabled=false;$('#save-product').textContent=editingId?'Save changes':'Add product +';$('#editor-success').hidden=true;}showError('');$('#draft-status').textContent='Unsaved changes';preview();}
   form.addEventListener('input',markChanged);
   form.addEventListener('change',preview);
   function busy(value){imageBusy=value;$('#save-product').disabled=value||saved;$('#save-draft').disabled=value;$('#image-dropzone').classList.toggle('processing',value);}
@@ -69,36 +73,30 @@
   });
   form.addEventListener('submit',event=>{
     event.preventDefault();if(imageBusy||saved)return;showError('');
-    const data=values();
-    for(const field of Object.values(fields))field.setCustomValidity('');
-    for(const key of ['name','summary','description'])if(!data[key]){fields[key].setCustomValidity('Please enter some text, not just spaces.');fields[key].reportValidity();return;}
-    const id='local-'+(globalThis.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2,10)}`);
-    const product=sanitizeProduct({...data,id,price:Number(data.price)});
-    if(!product){showError('Check your product details. Enter a category, a price from $0.01 to $999,999.99, and the required text.');return;}
     try{
-      const existing=getSavedProducts();
-      if(existing.length>=30){showError('This browser preview supports up to 30 added products. A shared catalog will need a backend.');return;}
-      localStorage.setItem(productStorageKey,JSON.stringify([product,...existing]));
-    }catch{showError('The product could not be saved. Browser storage may be full or unavailable. Your form is still here; try removing the photo or freeing storage.');return;}
-    reloadProducts();
-    try{localStorage.removeItem(draftKey);}catch{/* Product was saved even if draft cleanup fails. */}
-    saved=true;$('#save-product').disabled=true;$('#save-product').textContent='Product added';
-    $('#view-created-product').href=`product.html?id=${encodeURIComponent(product.id)}`;
-    $('#editor-success').hidden=false;$('#draft-status').textContent='Saved to your browser collection.';preview();
-    $('#editor-success').scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'center'});
+      const product=StoreDemo.db.saveProduct(sellerUser.id,values(),editingId||undefined);
+      refreshSeller();
+      try{localStorage.removeItem(draftKey);}catch{}
+      saved=true;$('#save-product').disabled=true;$('#save-product').textContent=editingId?'Changes saved':'Product added';
+      $('#view-created-product').href='shop.html?id='+encodeURIComponent(sellerUser.id)+'&product='+encodeURIComponent(product.id);
+      $('#view-created-product').textContent='Preview seller page';
+      $('#editor-success').hidden=false;$('#draft-status').textContent='Saved to your own seller workspace. Visible in this browser only; not synced to other visitors.';preview();
+      $('#editor-success').scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'center'});
+    }catch(error){showError(error.message);}
   });
   Object.values(fields).forEach(field=>field.addEventListener('input',()=>field.setCustomValidity('')));
-  $('#add-another').addEventListener('click',()=>{imageSequence++;form.reset();uploadedImage='';uploadedName='';saved=false;busy(false);$('#editor-success').hidden=true;$('#save-product').textContent='Add product +';$('#draft-status').textContent='';$('#image-error').textContent='';showError('');preview();fields.name.focus();});
+  $('#add-another').addEventListener('click',()=>{if(editingId){location.assign('add-product.html');return;}imageSequence++;form.reset();uploadedImage='';uploadedName='';saved=false;busy(false);$('#editor-success').hidden=true;$('#save-product').textContent=editingId?'Save changes':'Add product +';$('#draft-status').textContent='';$('#image-error').textContent='';showError('');preview();fields.name.focus();});
   try{
-    const draft=JSON.parse(localStorage.getItem(draftKey)||'null');
+    const draft=editingProduct?{...editingProduct,price:String(editingProduct.price),stock:String(editingProduct.stock)}:JSON.parse(localStorage.getItem(draftKey)||'null');
     if(draft&&typeof draft==='object'){
-      for(const [name,field] of Object.entries(fields))if(typeof draft[name]==='string')field.value=draft[name].slice(0,name==='description'?2000:name==='summary'?100:name==='name'?80:30);
+      for(const [name,field] of Object.entries(fields))if(typeof draft[name]==='string')field.value=draft[name].slice(0,name==='description'?2000:name==='summary'?100:name==='name'?80:name==='sku'?40:30);
       if(!productCategories.includes(fields.category.value))fields.category.value='';
       const color=[...form.querySelectorAll('[name="color"]')].find(input=>input.value===draft.color);if(color)color.checked=true;
       $('#new-is-new').checked=draft.isNew!==false;
-      if(typeof draft.image==='string'&&draft.image.length<=900000&&/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(draft.image)){uploadedImage=draft.image;uploadedName=typeof draft.imageName==='string'?draft.imageName.slice(0,200):'Draft image';}
-      $('#draft-status').textContent='Your saved draft has been restored.';
+      if(typeof draft.image==='string'&&StoreDemo.safeImage(draft.image)===draft.image){uploadedImage=draft.image;uploadedName=typeof draft.imageName==='string'?draft.imageName.slice(0,200):'Draft image';}
+      $('#draft-status').textContent=editingProduct?'Editing a product from your store.':'Your saved draft has been restored.';
     }
   }catch{$('#draft-status').textContent='No saved draft could be restored. You can start a new product below.';}
+  if(editingProduct){$('#editor-page-title').textContent='Edit Product';$('#save-product').textContent='Save changes';}
   preview();
 })();
