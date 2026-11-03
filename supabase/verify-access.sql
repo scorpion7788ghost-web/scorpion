@@ -13,6 +13,10 @@ from (
   from (values(current_setting('lk_test.seller_one'),'seller'),(current_setting('lk_test.seller_two'),'seller'),(current_setting('lk_test.customer'),'customer')) as accounts(account_id,account_role)
 ) as prepared;
 
+-- Flush the deferred account checks so fixtures are visible inside this test's
+-- rollback-only transaction. Normal Auth requests flush these checks at commit.
+set constraints auth.lk_managed_account,auth.lk_new_account immediate;
+
 -- These transaction-only fixtures exercise APPROVED sellers. Pending seller
 -- denials are covered by tests/worker-database.test.cjs in an isolated database.
 update public.lk_profiles set verification_status='approved'

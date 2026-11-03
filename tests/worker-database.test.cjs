@@ -5,7 +5,14 @@ async function main(){
  const db=new PGlite();await db.waitReady;
  const ids={admin:'11111111-1111-4111-8111-111111111111',oldSeller:'22222222-2222-4222-8222-222222222222',buyer:'33333333-3333-4333-8333-333333333333',seller:'44444444-4444-4444-8444-444444444444',worker:'55555555-5555-4555-8555-555555555555',other:'66666666-6666-4666-8666-666666666666',forged:'77777777-7777-4777-8777-777777777777'};
  async function register(id,role,username,managed=false,metadata={}){
-  return db.query('insert into auth.users(id,email,raw_user_meta_data,raw_app_meta_data) values($1,$2,$3::jsonb,$4::jsonb)',[id,username+'@'+role+'.lk-store.invalid',JSON.stringify({role,username,name:username,contact_email:'',...metadata}),JSON.stringify(managed?{lk_managed:true}:{})]);
+  // Supabase Auth adminUserCreate inserts provider metadata first, then applies
+  // app_metadata in an UPDATE within the same transaction before committing.
+  await db.exec('begin');
+  try{
+   await db.query('insert into auth.users(id,email,raw_user_meta_data,raw_app_meta_data) values($1,$2,$3::jsonb,$4::jsonb)',[id,username+'@'+role+'.lk-store.invalid',JSON.stringify({role,username,name:username,contact_email:'',...metadata}),JSON.stringify({provider:'email',providers:['email']})]);
+   if(managed)await db.query("update auth.users set raw_app_meta_data=raw_app_meta_data||'{\"lk_managed\":true}'::jsonb where id=$1",[id]);
+   await db.exec('commit');
+  }catch(error){await db.exec('rollback');throw error;}
  }
  async function asUser(id,sql,args=[]){
   await db.query("select set_config('request.jwt.claim.sub',$1,false)",[id]);await db.exec('set role authenticated');
@@ -20,13 +27,18 @@ async function main(){
   await db.exec(fs.readFileSync('supabase/schema.sql','utf8'));
   await register(ids.admin,'customer','scorpion');await register(ids.oldSeller,'seller','existing_seller');
   await db.exec(fs.readFileSync('supabase/admin-access.sql','utf8'));
-  await db.exec(fs.readFileSync('supabase/worker-verification.sql','utf8'));
-  await db.exec(fs.readFileSync('supabase/worker-verification.sql','utf8'));
+  const upgrade=fs.readFileSync(process.env.LK_WORKER_UPGRADE_BASELINE||'supabase/worker-verification.sql','utf8');
+  await db.exec(upgrade);
+  await db.exec(upgrade);
+  await db.exec(fs.readFileSync('supabase/fix-worker-creation.sql','utf8'));
+  await db.exec(fs.readFileSync('supabase/fix-worker-creation.sql','utf8'));
   assert.equal((await db.query('select verification_status from public.lk_profiles where auth_id=$1',[ids.oldSeller])).rows[0].verification_status,'approved','Existing sellers remain active');
   await register(ids.buyer,'customer','buyer');
   await register(ids.seller,'seller','seller_one',false,{verification_status:'approved',roleOverride:'worker',isAdmin:true});
   await register(ids.other,'seller','seller_two',true);
   await assert.rejects(register(ids.forged,'worker','forged_worker',false,{lk_managed:true,isAdmin:true}),/Only an administrator/);
+  assert.equal((await db.query('select * from auth.users where id=$1',[ids.forged])).rows.length,0,'A rejected public Worker signup must roll back the entire Auth record');
+  assert.equal((await db.query('select * from public.lk_profiles where auth_id=$1',[ids.forged])).rows.length,0);
   await register(ids.worker,'worker','review_worker',true);
   assert.equal((await db.query('select verification_status from public.lk_profiles where auth_id=$1',[ids.seller])).rows[0].verification_status,'pending');
   assert.equal((await db.query('select verification_status from public.lk_profiles where auth_id=$1',[ids.other])).rows[0].verification_status,'pending','Admin-created sellers also need explicit approval');
@@ -64,7 +76,7 @@ async function main(){
   await asUser(ids.admin,'select public.lk_approve_seller($1)',[ids.other]);
   assert.equal((await asUser(ids.worker,"select public.lk_seller_reviews(1,'') as result")).rows[0].result.total,0);
   await db.exec('set role anon');
-  try{assert.equal((await db.query('select public.lk_registration_status() as status')).rows[0].status.version,1);await assert.rejects(db.query("select public.lk_seller_reviews(1,'')"));await assert.rejects(db.query('select * from public.lk_profiles'));}finally{await db.exec('reset role');}
+  try{const status=(await db.query('select public.lk_registration_status() as status')).rows[0].status;assert.equal(status.version,1);assert.equal(status.workerCreationVersion,2);await assert.rejects(db.query("select public.lk_seller_reviews(1,'')"));await assert.rejects(db.query('select * from public.lk_profiles'));}finally{await db.exec('reset role');}
   await db.query('delete from auth.users where id=$1',[ids.worker]);
   await denied(ids.worker,"select public.lk_seller_reviews(1,'')");
   await db.exec(fs.readFileSync('supabase/verify-access.sql','utf8'));

@@ -12,40 +12,53 @@ alter table public.lk_profiles add constraint lk_profiles_verification_check
   check (verification_status in ('pending','approved') and (role='seller' or verification_status='approved'));
 create index if not exists lk_seller_review_queue on public.lk_profiles(created_at,auth_id) where role='seller' and verification_status='pending';
 
--- Only server-controlled app_metadata can provision a worker. Public customers
--- and sellers may register, but none can choose their persisted approval status.
+-- Auth adminUserCreate applies app_metadata AFTER the initial INSERT. Deferred
+-- triggers read the final row at commit, before any account becomes accessible.
+-- Public signup cannot set trusted app_metadata and still cannot create Workers.
 create or replace function lk_private.require_managed_account()
 returns trigger language plpgsql security definer set search_path='' as $$
+declare registered_user auth.users;
 begin
-  if new.raw_user_meta_data->>'role' in ('customer','seller') then return new; end if;
-  if new.raw_user_meta_data->>'role'='worker' and new.raw_app_meta_data->>'lk_managed'='true' then return new; end if;
+  select * into registered_user from auth.users where id=new.id;
+  if not found then return new; end if;
+  if registered_user.raw_user_meta_data->>'role' in ('customer','seller') then return new; end if;
+  if registered_user.raw_user_meta_data->>'role'='worker' and registered_user.raw_app_meta_data->>'lk_managed'='true' then return new; end if;
   raise exception 'Only an administrator can create a Worker account.' using errcode='42501';
 end $$;
 
 create or replace function lk_private.register_profile()
 returns trigger language plpgsql security definer set search_path='' as $$
-declare account_role text; account_username text; account_name text; contact text; account_id text;
+declare registered_user auth.users; account_role text; account_username text; account_name text; contact text; account_id text;
 begin
-  account_role:=new.raw_user_meta_data->>'role';
-  account_username:=lower(lk_private.text(new.raw_user_meta_data->'username',30,true));
-  account_name:=lk_private.text(new.raw_user_meta_data->'name',80,true);
-  contact:=lk_private.text(new.raw_user_meta_data->'contact_email',120,false);
+  select * into registered_user from auth.users where id=new.id;
+  if not found then return new; end if;
+  account_role:=registered_user.raw_user_meta_data->>'role';
+  account_username:=lower(lk_private.text(registered_user.raw_user_meta_data->'username',30,true));
+  account_name:=lk_private.text(registered_user.raw_user_meta_data->'name',80,true);
+  contact:=lk_private.text(registered_user.raw_user_meta_data->'contact_email',120,false);
   if account_role is null or account_role not in ('customer','seller','worker') or account_username !~ '^[a-z0-9_]{3,30}$'
-    or new.email is distinct from account_username||'@'||account_role||'.lk-store.invalid' then
+    or registered_user.email is distinct from account_username||'@'||account_role||'.lk-store.invalid' then
     raise exception 'Invalid account registration.';
   end if;
-  if account_role='worker' and new.raw_app_meta_data->>'lk_managed' is distinct from 'true' then
+  if account_role='worker' and registered_user.raw_app_meta_data->>'lk_managed' is distinct from 'true' then
     raise exception 'Only an administrator can create a Worker account.' using errcode='42501';
   end if;
   if contact<>'' and contact !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' then raise exception 'Enter a valid contact email.'; end if;
-  account_id:=account_role||'_'||replace(new.id::text,'-','');
+  account_id:=account_role||'_'||replace(registered_user.id::text,'-','');
   insert into public.lk_profiles(auth_id,id,role,username,name,email,verification_status)
-  values(new.id,account_id,account_role,account_username,account_name,contact,case when account_role='seller' then 'pending' else 'approved' end);
+  values(registered_user.id,account_id,account_role,account_username,account_name,contact,case when account_role='seller' then 'pending' else 'approved' end);
   if account_role='seller' then
-    insert into public.lk_shops(id,owner_id,profile) values(account_id,new.id,jsonb_build_object('id',account_id,'name',account_name,'tagline','','description','','email','','phone','','location','','color','#c5a6f5'));
+    insert into public.lk_shops(id,owner_id,profile) values(account_id,registered_user.id,jsonb_build_object('id',account_id,'name',account_name,'tagline','','description','','email','','phone','','location','','color','#c5a6f5'));
   end if;
   return new;
 end $$;
+
+drop trigger if exists lk_managed_account on auth.users;
+create constraint trigger lk_managed_account after insert on auth.users
+deferrable initially deferred for each row execute function lk_private.require_managed_account();
+drop trigger if exists lk_new_account on auth.users;
+create constraint trigger lk_new_account after insert on auth.users
+deferrable initially deferred for each row execute function lk_private.register_profile();
 
 create or replace function lk_private.me(expected_role text default null)
 returns public.lk_profiles language plpgsql stable security definer set search_path='' as $$
@@ -74,7 +87,7 @@ returns jsonb language sql stable security definer set search_path='' as $$
   select jsonb_build_object('isAdmin',public.lk_is_admin(),'isWorker',exists(select 1 from public.lk_profiles where auth_id=auth.uid() and role='worker' and verification_status='approved'));
 $$;
 create or replace function public.lk_registration_status()
-returns jsonb language sql stable set search_path='' as $$ select '{"version":1,"enabled":true}'::jsonb; $$;
+returns jsonb language sql stable set search_path='' as $$ select '{"version":1,"enabled":true,"workerCreationVersion":2}'::jsonb; $$;
 
 -- A pending seller can read their own profile to check the waiting state, but
 -- cannot read the catalog, drafts or carts, or execute seller mutation RPCs.

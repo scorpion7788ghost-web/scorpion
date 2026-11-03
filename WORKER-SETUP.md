@@ -2,6 +2,14 @@
 
 This upgrade uses the existing Supabase project **sukeowjxzqgszdvbpves**. Apply the backend changes before publishing the matching customer and seller pages. It preserves existing users, stores and products, and adds no example data.
 
+## Repair Worker creation on an already upgraded project
+
+If Add account → Worker reports **“Account service is unavailable”**, run [supabase/fix-worker-creation.sql](supabase/fix-worker-creation.sql) in SQL Editor. Then retry adding the Worker through the admin panel. Existing accounts and approvals are preserved; this repair is safe to run again.
+
+The original trigger checked the administrator-only `lk_managed` marker too early. [Supabase Auth's administrator creation flow](https://github.com/supabase/auth/blob/master/internal/api/admin.go) inserts the user first and then updates `app_metadata` within the same transaction. The repaired triggers read the final row at transaction commit. Public Worker signup still fails and rolls back the complete account; approved administrator requests succeed. A successful public `lk_registration_status` check reports `workerCreationVersion: 2` after the repair.
+
+The current `worker-verification.sql` below already includes this fix for future installations. The repair needs only SQL; the existing `rapid-handler` function and website configuration remain compatible.
+
 ## 1. Run the new database upgrade
 
 Open [SQL Editor](https://supabase.com/dashboard/project/sukeowjxzqgszdvbpves/sql/new), paste the entire contents of [supabase/worker-verification.sql](supabase/worker-verification.sql), and run it. The existing `schema.sql` and `admin-access.sql` have already been applied to this project; **do not rerun them**. This new upgrade is safe to run again.
