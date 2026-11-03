@@ -5,18 +5,20 @@
  const role=['seller','worker'].includes(document.body.dataset.portal)?document.body.dataset.portal:'customer';
  const admin=document.body.dataset.adminLogin==='true';
  const registering=document.body.dataset.authMode==='register';
+ const requestedAdmin=/^(admin|seller-reviews)\.html\?portal=(worker|seller)$/.test(new URLSearchParams(location.search).get('next')||'');
  const get=id=>document.getElementById(id),form=get('auth-form');if(!form)return;
  const allowed=role==='worker'?['worker.html','worker-account.html']:role==='seller'?['dashboard.html','products.html','add-product.html','edit-product.html','orders.html','settings.html','account.html','shop.html']:['index.html','cart.html','product.html','contact.html','about.html','account.html','seller.html'];
  function destination(){
   if(admin)return 'admin.html';
   const next=new URLSearchParams(location.search).get('next')||'';
+  if(requestedAdmin)return new URL(next,window.STORE_CONFIG.customerUrl).href;
   const match=next.match(/^([a-z-]+\.html)(\?[^#]*)?$/);
   return match&&allowed.includes(match[1])?next:role==='worker'?'worker.html':role==='seller'?'dashboard.html':'index.html';
  }
  async function enter(){
   if(role==='seller'&&Store.auth.current(role)?.verificationStatus!=='approved'){location.replace('verification-pending.html');return;}
   if(role==='worker'){const status=await Store.request('/staff/status');if(!status.isWorker)throw new Error('This account does not have Worker access.');}
-  if(admin){const status=await Store.request('/admin/status');if(!status.isAdmin)throw new Error('This customer account does not have administrator access.');}
+  if(admin||requestedAdmin){const status=await Store.request('/admin/status');if(!status.isAdmin)throw new Error('This account does not have administrator access.');}
   location.replace(destination());
  }
  if(Store.auth.current(role)){try{await enter();return;}catch(error){get('auth-error').textContent=error.message;get('auth-error').hidden=false;}}

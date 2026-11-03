@@ -28,11 +28,15 @@ for folder in [ROOT,ROOT/'seller-site']:
 assert not (ROOT/'add-product.html').exists()
 assert not (ROOT/'assets/add-product.js').exists()
 assert (ROOT/'assets/store-api.js').read_bytes()==(ROOT/'seller-site/assets/store-api.js').read_bytes()
-for name in ['store-config.js','supabase-store.js','auth.js','access.js','access.css','account.js','verification.css']:
+for name in ['store-config.js','supabase-store.js','auth.js','access.js','access.css','account.js','verification.css','theme.js','themes.css','profile.js','profile.css']:
  assert (ROOT/'assets'/name).read_bytes()==(ROOT/'seller-site/assets'/name).read_bytes(),name
 for folder in [ROOT,ROOT/'seller-site']:
  for page in folder.glob('*.html'):
   text=page.read_text(encoding='utf-8-sig')
+  assert text.count('data-profile-host')==1,page
+  assert text.count('src="assets/theme.js"')==1,page
+  assert text.index('assets/profile.js') < text.index('assets/access.js'),page
+  assert 'assets/themes.css' in text and 'assets/profile.css' in text,page
   assert text.index('assets/store-config.js') < text.index('assets/supabase-store.js') < text.index('assets/store-api.js') < text.index('assets/access.js'),page
 assert not (ROOT/'assets/demo-data.js').exists()
 print('PASS: customer/seller separation, page links, form labels, assets, unique IDs, and matching API clients.')

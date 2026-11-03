@@ -1,9 +1,9 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('assets/access.js','utf8');
-async function gate({access='customer',user=null,error='',admin=false,worker=false}={}){
+async function gate({access='customer',user=null,error='',admin=false,worker=false,portal}={}){
  const removed=[],redirects=[],events={},nodes=new Map();
  const node=()=>({setAttribute(){},append(){},prepend(){},replaceChildren(){},addEventListener(){},textContent:''});
- const document={body:{dataset:{access,portal:access.startsWith('seller')?'seller':access==='worker'?'worker':'customer'},classList:{remove:name=>removed.push(name)},prepend(){}},getElementById:id=>nodes.get(id)||null,createElement:node,addEventListener(){}};
+ const document={body:{dataset:{access,portal:portal||(access.startsWith('seller')?'seller':access==='worker'?'worker':'customer')},classList:{remove:name=>removed.push(name)},prepend(){}},getElementById:id=>nodes.get(id)||null,createElement:node,addEventListener(){}};
  const Store={ready:Promise.resolve(),error,auth:{current:()=>user},request:async()=>({isAdmin:admin,isWorker:worker})};
  const context={Store,document,location:{pathname:'/scorpion/product.html',search:'?id=product_abc',replace:url=>redirects.push(url)},window:{addEventListener:(name,fn)=>{events[name]=fn;}}};
  vm.runInNewContext(source,context);return {allowed:await Store.accessReady,removed,redirects,events};
@@ -16,6 +16,8 @@ async function main(){
  const outage=await gate({user:{id:'customer_owned'},error:'Service unavailable'});assert.equal(outage.allowed,false);assert.equal(outage.removed.length,0);
  assert.equal((await gate({access:'admin',user:{id:'ordinary'}})).allowed,false);
  assert.equal((await gate({access:'admin',user:{id:'approved'},admin:true})).allowed,true);
+ assert.equal((await gate({access:'admin',portal:'worker',user:{role:'worker',isAdmin:true},worker:true})).allowed,false,'Worker role or spoofed user metadata cannot grant administrator access');
+ assert.equal((await gate({access:'admin',portal:'worker',user:{role:'worker'},admin:true})).allowed,true,'Only a server-confirmed administrator grant permits Worker access to admin pages');
  const adminAnon=await gate({access:'admin'});assert.match(adminAnon.redirects[0],/^admin-login.html/);
  const waiting=await gate({access:'seller',user:{verificationStatus:'pending'}});assert.equal(waiting.allowed,false);assert.equal(waiting.redirects[0],'verification-pending.html');assert.equal(waiting.removed.length,0);
  assert.equal((await gate({access:'seller-pending',user:{verificationStatus:'pending'}})).allowed,true);

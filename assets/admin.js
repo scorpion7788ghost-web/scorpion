@@ -2,7 +2,7 @@
 (async()=>{
  if(!(await Store.accessReady))return;
  const get=id=>document.getElementById(id),all=selector=>[...document.querySelectorAll(selector)];
- const user=Store.auth.current('customer');get('admin-name').textContent=user.name;get('admin-year').textContent=new Date().getFullYear();
+ const user=Store.auth.current(document.body.dataset.portal||'customer');get('admin-name').textContent=user.name;get('admin-year').textContent=new Date().getFullYear();
  let page=1,role='all',search='',total=0,sequence=0,creating=false,deleting=false,target=null;
  function message(id,text){get(id).textContent=text;get(id).hidden=!text;}
  function setupHint(show){const note=get('admin-setup-note');if(note)note.hidden=!show;}
@@ -25,7 +25,7 @@
  all('[data-role]').forEach(button=>button.addEventListener('click',()=>{role=button.dataset.role;page=1;all('[data-role]').forEach(item=>{item.classList.toggle('active',item===button);item.setAttribute('aria-pressed',String(item===button));});load();}));
  get('user-search-form').addEventListener('submit',event=>{event.preventDefault();search=get('user-search').value.trim();page=1;load();});
  get('refresh-users').addEventListener('click',load);get('previous-page').addEventListener('click',()=>{page--;load();});get('next-page').addEventListener('click',()=>{page++;load();});
- get('admin-signout').addEventListener('click',async()=>{try{await Store.auth.signOut();location.replace('admin-login.html');}catch(error){message('admin-error',error.message);}});
+ get('admin-signout')?.addEventListener('click',async()=>{try{await Store.auth.signOut();location.replace('admin-login.html');}catch(error){message('admin-error',error.message);}});
  function lock(form,busy){form.querySelectorAll('input,select,button').forEach(control=>{control.disabled=busy;});}
  all('[data-close]').forEach(button=>button.addEventListener('click',()=>get(button.dataset.close).close()));
  get('create-dialog').addEventListener('cancel',event=>{if(creating)event.preventDefault();});get('delete-dialog').addEventListener('cancel',event=>{if(deleting)event.preventDefault();});

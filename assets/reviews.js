@@ -2,7 +2,7 @@
 (async()=>{
  if(!(await Store.accessReady))return;
  const get=id=>document.getElementById(id),worker=document.body.dataset.portal==='worker';
- const user=Store.auth.current(worker?'worker':'customer');get('reviewer-name').textContent=user.name;
+ const user=Store.auth.current(document.body.dataset.portal||'customer');get('reviewer-name').textContent=user.name;
  let page=1,search='',sequence=0,target=null,approving=false;
  function message(id,text){get(id).textContent=text;get(id).hidden=!text;}
  function node(tag,cls,text){const item=document.createElement(tag);item.className=cls||'';item.textContent=text||'';return item;}
@@ -26,7 +26,7 @@
  }
  get('review-search-form').addEventListener('submit',event=>{event.preventDefault();search=get('review-search').value.trim();page=1;load();});
  get('review-refresh').addEventListener('click',load);get('review-previous').addEventListener('click',()=>{page--;load();});get('review-next').addEventListener('click',()=>{page++;load();});
- get('review-signout').addEventListener('click',async()=>{try{await Store.auth.signOut();location.replace(worker?'worker-login.html':'admin-login.html');}catch(error){message('review-error',error.message);}});
+ get('review-signout')?.addEventListener('click',async()=>{try{await Store.auth.signOut();location.replace(worker?'worker-login.html':'admin-login.html');}catch(error){message('review-error',error.message);}});
  get('approval-cancel').addEventListener('click',()=>get('approval-dialog').close());
  get('approval-dialog').addEventListener('cancel',event=>{if(approving)event.preventDefault();});
  get('approval-form').addEventListener('submit',async event=>{

@@ -4,7 +4,7 @@
  const access=document.body.dataset.access||'customer';
  const role=['seller','worker'].includes(document.body.dataset.portal)?document.body.dataset.portal:'customer';
  const publicPage=access==='public';
- const loginPage=access==='admin'?'admin-login.html':role==='worker'?'worker-login.html':'login.html';
+ const loginPage=role==='worker'?'worker-login.html':role==='seller'&&access==='admin'?new URL('login.html',window.STORE_CONFIG.sellerUrl).href:access==='admin'?'admin-login.html':'login.html';
  function loginUrl(){return loginPage+'?next='+encodeURIComponent(location.pathname.split('/').pop()+location.search);}
  function fail(message){
   let panel=document.getElementById('access-status');
@@ -15,26 +15,12 @@
   const login=document.createElement('a');login.href=loginPage;login.textContent='Go to sign in';
   panel.replaceChildren(title,detail,retry,login);
  }
- function profileMenu(user){
-  const trigger=document.getElementById('profile-toggle'),menu=document.getElementById('profile-dropdown');
-  if(!trigger||!menu)return;
-  const name=document.getElementById('profile-name');if(name)name.textContent=user.name;
-  const seller=document.getElementById('become-seller');
-  if(seller)seller.href=new URL('register.html',Store.state.sellerUrl||window.STORE_CONFIG.sellerUrl).href;
-  function close(focus=false){menu.hidden=true;trigger.setAttribute('aria-expanded','false');if(focus)trigger.focus();}
-  trigger.addEventListener('click',()=>{menu.hidden=!menu.hidden;trigger.setAttribute('aria-expanded',String(!menu.hidden));});
-  document.addEventListener('click',event=>{if(!trigger.contains(event.target)&&!menu.contains(event.target))close();});
-  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!menu.hidden)close(true);});
-  document.addEventListener('focusin',event=>{if(!trigger.contains(event.target)&&!menu.contains(event.target))close();});
-  document.getElementById('profile-signout')?.addEventListener('click',async event=>{const button=event.currentTarget;button.disabled=true;try{await Store.auth.signOut();location.replace('login.html');}catch(error){button.disabled=false;const message=document.getElementById('profile-error');message.textContent=error.message;message.hidden=false;}});
-  if(window.StoreCloud?.enabled)Store.request('/admin/status').then(result=>{const link=document.getElementById('profile-admin');if(link)link.hidden=!result.isAdmin;}).catch(()=>{});
- }
  Store.accessReady=(async()=>{
-  await Store.ready;if(publicPage)return true;
+  await Store.ready;if(publicPage){window.StoreProfile?.mount(Store.auth.current(role));return true;}
   if(Store.error){fail(Store.error);return false;}
   const user=Store.auth.current(role);
   if(!user){location.replace(loginUrl());return false;}
-  if(role==='seller'){
+  if(role==='seller'&&access!=='admin'){
    if(user.verificationStatus!=='approved'&&access!=='seller-pending'){location.replace('verification-pending.html');return false;}
    if(user.verificationStatus==='approved'&&access==='seller-pending'){location.replace('dashboard.html');return false;}
   }
@@ -42,11 +28,15 @@
    try{const status=await Store.request('/staff/status');if(!status.isWorker){fail('This account does not have Worker access.');return false;}}
    catch(error){fail(error.message);return false;}
   }
+  let adminStatus={isAdmin:false};
   if(access==='admin'){
-   try{const result=await Store.request('/admin/status');if(!result.isAdmin){fail('This account does not have administrator access.');return false;}}
+   try{const result=await Store.request('/admin/status');adminStatus=result;if(!result.isAdmin){fail('This account does not have administrator access.');return false;}}
    catch(error){fail(error.message);return false;}
   }
-  document.body.classList.remove('auth-pending');profileMenu(user);return true;
+  document.body.classList.remove('auth-pending');
+  window.StoreProfile?.mount(user,adminStatus);
+  if(access!=='admin'&&window.StoreCloud?.enabled)Store.request('/admin/status').then(status=>window.StoreProfile?.mount(user,status)).catch(()=>{});
+  return true;
  })();
  window.addEventListener('pageshow',event=>{if(event.persisted&&!publicPage)location.reload();});
  window.addEventListener('storage',event=>{if(!publicPage&&event.key?.startsWith('lk-auth-v2:')&&event.key.endsWith(':'+role))location.reload();});
