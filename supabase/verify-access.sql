@@ -1,5 +1,6 @@
 -- Optional SQL Editor verification. Every temporary record is rolled back.
--- Run after schema.sql and admin-access.sql. A failing assertion aborts the transaction; do not commit it.
+-- Run after schema.sql, admin-access.sql, and worker-verification.sql.
+-- A failing assertion aborts the transaction; do not commit it.
 begin;
 select set_config('lk_test.seller_one',gen_random_uuid()::text,true);
 select set_config('lk_test.seller_two',gen_random_uuid()::text,true);
@@ -11,6 +12,11 @@ from (
   select account_id,account_role,'qa_'||left(replace(account_id,'-',''),24) as username
   from (values(current_setting('lk_test.seller_one'),'seller'),(current_setting('lk_test.seller_two'),'seller'),(current_setting('lk_test.customer'),'customer')) as accounts(account_id,account_role)
 ) as prepared;
+
+-- These transaction-only fixtures exercise APPROVED sellers. Pending seller
+-- denials are covered by tests/worker-database.test.cjs in an isolated database.
+update public.lk_profiles set verification_status='approved'
+where auth_id in (current_setting('lk_test.seller_one')::uuid,current_setting('lk_test.seller_two')::uuid);
 
 select set_config('request.jwt.claim.sub',current_setting('lk_test.seller_one'),true);
 set local role authenticated;

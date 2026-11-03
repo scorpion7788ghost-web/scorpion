@@ -24,7 +24,7 @@ function req(method='GET',body,headers={},query=''){
  return new Request(root+'/functions/v1/store-admin'+query,{method,headers:{Origin:origin,Authorization:'Bearer user-session',...(body!==undefined?{'Content-Type':'application/json'}:{}),...headers},body:body===undefined?undefined:JSON.stringify(body)});
 }
 async function main(){
- let test=app();let result=await test.handler(req('OPTIONS'));assert.equal(result.status,204);assert.equal(test.calls.length,0);assert.equal(result.headers.get('access-control-allow-origin'),origin);
+ let test=app();let result=await test.handler(req('OPTIONS'));assert.equal(result.status,204);assert.equal(test.calls.length,0);assert.equal(result.headers.get('access-control-allow-origin'),origin);assert.equal(result.headers.get('x-lk-admin-version'),'2');
  result=await test.handler(req('GET',undefined,{Origin:'https://evil.invalid'}));assert.equal(result.status,403);assert.equal(result.headers.get('access-control-allow-origin'),null);assert.equal(test.calls.length,0);
  result=await test.handler(req('GET',undefined,{Authorization:''}));assert.equal(result.status,401);assert.equal(test.calls.length,0);
  result=await test.handler(req('GET',undefined,{Authorization:'Bearer server-secret'}));assert.equal(result.status,401);
@@ -37,6 +37,10 @@ async function main(){
  const input={role:'seller',name:'Real input in isolated test',username:'New_Seller',email:'seller@example.invalid',password:'ManagedPassword123!'};
  test=app();result=await test.handler(req('POST',input));assert.equal(result.status,201);payload=await result.json();assert.equal(payload.user.username,'new_seller');assert(!JSON.stringify(payload).includes(input.password));
  const created=JSON.parse(test.calls.find(call=>call.url===root+'/auth/v1/admin/users').options.body);assert.equal(created.app_metadata.lk_managed,true);assert.equal(created.email_confirm,true);assert.equal(created.email,'new_seller@seller.lk-store.invalid');assert.equal(created.user_metadata.contact_email,input.email);
+ test=app();assert.equal((await test.handler(req('POST',{...input,role:'worker',verification_status:'approved'}))).status,201);
+ const workerCreated=JSON.parse(test.calls.find(call=>call.url===root+'/auth/v1/admin/users').options.body);assert.equal(workerCreated.email,'new_seller@worker.lk-store.invalid');assert.equal(workerCreated.app_metadata.lk_managed,true);assert.equal(workerCreated.user_metadata.verification_status,undefined);
+ test=app({admin:false});assert.equal((await test.handler(req('POST',{...input,role:'worker'}))).status,403);assert(!test.calls.some(call=>call.url.includes('/auth/v1/admin/')),'Workers and ordinary users cannot create workers');
+ test=app();assert.equal((await test.handler(req('GET',undefined,{},'?role=worker'))).status,200);assert(test.calls.some(call=>call.url.includes('role=eq.worker')));
  test=app();assert.equal((await test.handler(req('POST',{...input,role:'admin'}))).status,422);assert(!test.calls.some(call=>call.url.includes('/auth/v1/admin/')));
  assert.equal((await test.handler(req('POST',{...input,password:'short'}))).status,422);
  assert.equal((await test.handler(req('POST',{...input,username:'bad,name'}))).status,422);

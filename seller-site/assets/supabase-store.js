@@ -3,7 +3,7 @@
  'use strict';
  const config=window.STORE_CONFIG||{};
  if(config.provider!=='supabase')return;
- const role=document.body?.dataset.portal==='seller'?'seller':'customer';
+ const role=['seller','worker'].includes(document.body?.dataset.portal)?document.body.dataset.portal:'customer';
  const url=(config.supabaseUrl||'').replace(/\/$/,'');
  const key=config.supabaseKey||'';
  const adminFunction=config.supabaseAdminFunction??'store-admin';
@@ -33,6 +33,7 @@
     let message=result.msg||result.message||result.error_description||result.error||'The hosted request could not be completed.';
     if(result.code==='42P01'||result.code==='PGRST202'||result.code==='PGRST205')message='Run the Supabase schema setup before using the store.';
     if(path==='/rest/v1/rpc/lk_is_admin'&&result.code==='PGRST202')message='Administrator setup is incomplete. Apply the admin-access.sql upgrade in Supabase.';
+    if(['/rest/v1/rpc/lk_registration_status','/rest/v1/rpc/lk_staff_status','/rest/v1/rpc/lk_seller_reviews','/rest/v1/rpc/lk_approve_seller'].includes(path)&&result.code==='PGRST202')message='Registration and seller verification are not ready yet. The store owner needs to apply worker-verification.sql in Supabase.';
     if(response.status===429)message='Too many requests. Please wait and try again.';
     if(path.startsWith('/auth/')&&response.status===400&&result.error_code==='invalid_credentials')message='Username or password is incorrect for this account type.';
     const error=new Error(message);error.status=response.status;error.code=result.code;throw error;
@@ -65,15 +66,16 @@
  async function identity(){
   const token=await access();if(!token)return null;
   try{await wire('/auth/v1/user',{token});}catch(error){if(error.status===401||error.status===403){remember(null);return null;}throw error;}
-  const mine=await rows('lk_profiles','select=id,role,username,name,email,created_at,updated_at');
+  const mine=await rows('lk_profiles','select=*');
   const profile=mine[0];if(!profile)throw new Error('This account has no store profile. Run the Supabase schema setup before registering accounts.');
   if(profile.role!==role){remember(null);throw new Error('Sign in through the correct customer or seller website.');}
-  return {id:profile.id,role:profile.role,username:profile.username,name:profile.name,email:profile.email,createdAt:profile.created_at,updatedAt:profile.updated_at};
+  if(profile.role==='seller'&&!['pending','approved'].includes(profile.verification_status))throw new Error('Seller verification setup is incomplete. The store owner needs to apply worker-verification.sql in Supabase.');
+  return {id:profile.id,role:profile.role,username:profile.username,name:profile.name,email:profile.email,verificationStatus:profile.verification_status,createdAt:profile.created_at,updatedAt:profile.updated_at};
  }
  async function bootstrap(){
   configured();
   const user=await identity();
-  if(!user)return {portal:role,user:null,stores:[],products:[],sellerStore:null,cart:{},orders:[],csrf:'',customerUrl:config.customerUrl,sellerUrl:config.sellerUrl};
+  if(!user||user.role==='worker'||(user.role==='seller'&&user.verificationStatus!=='approved'))return {portal:role,user,stores:[],products:[],sellerStore:null,cart:{},orders:[],csrf:'',customerUrl:config.customerUrl,sellerUrl:config.sellerUrl};
   const [shops,publicProducts]=await Promise.all([rows('lk_shops','select=id,profile'),rows('lk_products','select=data&status=eq.active&order=created_at.desc')]);
   const products=publicProducts.map(row=>row.data);
   const stores=shops.map(row=>({profile:row.profile,products:products.filter(p=>p.sellerId===row.id)}));
@@ -97,13 +99,29 @@
   configured();
   if(path==='/bootstrap'&&method==='GET')return bootstrap();
   if(path==='/admin/status')return {isAdmin:(await access())?await rpc('lk_is_admin',{}):false};
+  if(path==='/staff/status')return (await access())?rpc('lk_staff_status',{}):{isAdmin:false,isWorker:false};
+  if(path==='/verification/status')return {user:await identity()};
+  if(path.startsWith('/staff/sellers?')&&method==='GET'){const params=new URLSearchParams(path.split('?')[1]);return rpc('lk_seller_reviews',{page_number:Number(params.get('page')||1),username_search:params.get('search')||''});}
+  if(path==='/staff/approve-seller'&&method==='POST')return rpc('lk_approve_seller',{target_auth_id:data.authId});
   if(path==='/admin/users'||path.startsWith('/admin/users?')){
    const token=await access();if(!token)throw new Error('Please sign in.');
    if(typeof adminFunction!=='string'||!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,99}$/.test(adminFunction)){const invalid=new Error('Set supabaseAdminFunction to the function slug from its endpoint URL.');invalid.code='ADMIN_SERVICE_UNAVAILABLE';throw invalid;}
    try{return await wire(adminPath+(path.includes('?')?'?'+path.split('?')[1]:''),{method,token,body:method==='GET'?undefined:data});}
    catch(error){if(error.status===404&&error.code==='NOT_FOUND'){const missing=new Error('The configured admin function endpoint was not found. Check its URL in the administrator setup.');missing.code='ADMIN_SERVICE_UNAVAILABLE';throw missing;}throw error;}
   }
-  if(path==='/auth/register')throw new Error('Accounts are created by the store administrator.');
+  if(path==='/auth/register'&&method==='POST'){
+   if(role==='worker'||data.role!==role||!['customer','seller'].includes(data.role))throw new Error('Only an administrator can create Worker accounts.');
+   checkStorage();const email=loginEmail(data.username);validatePassword(data.password);
+   const name=String(data.name||'').trim(),contact=String(data.email||'').trim();
+   if(!name||name.length>80)throw new Error('Enter your name, up to 80 characters.');
+   if(contact.length>120||(contact&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)))throw new Error('Enter a valid contact email, up to 120 characters.');
+   const ready=await wire('/rest/v1/rpc/lk_registration_status',{method:'POST',body:{}});
+   if(ready.version!==1||ready.enabled!==true)throw new Error('Account registration is not ready yet. Please contact the store owner.');
+   const settings=await wire('/auth/v1/settings');
+   if(settings.disable_signup||settings.mailer_autoconfirm!==true||settings.external?.email!==true)throw new Error('Registration is not ready yet. The store owner needs to enable email signups and turn off Confirm email for username accounts.');
+   const result=await wire('/auth/v1/signup',{method:'POST',body:{email,password:data.password,data:{role,username:String(data.username).trim().toLowerCase(),name,contact_email:contact}}});
+   keepAuth(result);return {user:await identity()};
+  }
   if(path==='/auth/login'&&method==='POST'){
    checkStorage();if(data.role!==role)throw new Error('Use the correct account website.');
    const result=await wire('/auth/v1/token?grant_type=password',{method:'POST',body:{email:loginEmail(data.username),password:data.password}});keepAuth(result);return {user:await identity()};

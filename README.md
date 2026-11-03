@@ -1,12 +1,12 @@
 # LK Tech Store
 
-**Current access model:** Both stores require sign-in, and accounts are created by an administrator. Follow [ADMIN-SETUP.md](ADMIN-SETUP.md) to upgrade the existing Supabase project and enable the `scorpion` administrator. The initial setup instructions below describe the earlier self-registration model; the admin upgrade supersedes it.
+**Current access model:** Buyers and sellers can register themselves. New sellers need approval from a Worker or Administrator before they can use the Seller Site. Only Administrators can create Workers. Follow [WORKER-SETUP.md](WORKER-SETUP.md) to apply this upgrade to the existing Supabase project; both stores still require sign-in.
 
 The customer store and **Seller Site** are separate websites with separate customer/seller login access. There are no demo accounts or sample products.
 
 ## Shared storage directly from GitHub Pages
 
-The [Supabase setup](SUPABASE-SETUP.md) uses hosted authentication and database records without PHP or Render. Both copies of `assets/store-config.js` now connect to the same project, and its public catalog responds successfully. Username registration requires the Email provider to be enabled with **Confirm email off**; see the setup guide for the remaining authentication settings and account checks.
+The [Supabase setup](SUPABASE-SETUP.md) uses hosted authentication and database records without PHP or Render. Both copies of `assets/store-config.js` now connect to the same project, and authenticated accounts share the catalog. Username registration requires the Email provider to be enabled with **Confirm email off**; see the setup guide for the remaining authentication settings and account checks.
 
 The existing local PHP/GitHub-file option remains available below. Existing records are not automatically moved between backends.
 

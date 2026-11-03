@@ -1,10 +1,10 @@
 # Shared online storage with Supabase
 
-**Current access model:** Both stores require sign-in, and accounts are created by an administrator. Follow [ADMIN-SETUP.md](ADMIN-SETUP.md) to upgrade the existing Supabase project and enable the `scorpion` administrator. The initial setup instructions below describe the earlier self-registration model; the admin upgrade supersedes it.
+**Current access model:** Buyers and sellers can register themselves. New sellers need approval from a Worker or Administrator before they can use the Seller Site. Only Administrators can create Workers. Follow [WORKER-SETUP.md](WORKER-SETUP.md) to apply this upgrade to the existing Supabase project; both stores still require sign-in.
 
 This option keeps both websites on GitHub Pages. Supabase provides managed password authentication and a hosted Postgres database; no PHP host, Render service, Docker build, or private GitHub write token is required.
 
-Both website configurations now point to the same Supabase project. The live public catalog is reachable. Username registration also requires the Authentication settings in step 3; a valid URL and key alone do not enable it. There are no sample users or products. Existing PHP/GitHub records are not automatically migrated; keep any existing data until a deliberate migration is complete.
+Both website configurations now point to the same Supabase project. Catalog access requires an approved, signed-in customer or seller. Username registration also requires the Authentication settings in step 3; a valid URL and key alone do not enable it. There are no sample users or products. Existing PHP/GitHub records are not automatically migrated; keep any existing data until a deliberate migration is complete.
 
 ## 1. Create a project
 
@@ -16,7 +16,7 @@ In the project's **SQL Editor**, start a new query. Copy the entire contents of 
 
 Use a dedicated project for this store. This is first-time setup, not a script to rerun over existing tables. A failure rolls back the whole setup transaction. Do not switch off Row Level Security or grant browser users unrestricted writes to solve a permissions error.
 
-For a database-level check, run [supabase/verify-access.sql](supabase/verify-access.sql) in SQL Editor afterward. It checks role separation, public visibility, and rejected seller edits inside a transaction and rolls back all its temporary records.
+For a database-level check, run [supabase/verify-access.sql](supabase/verify-access.sql) in SQL Editor afterward. Run it after all three schema/admin/worker upgrades. It checks role separation, authenticated visibility, and rejected seller edits inside a transaction and rolls back all its temporary records.
 
 ## 3. Configure username sign-in
 
@@ -50,14 +50,14 @@ Create your actual accounts through those pages. In Supabase, Auth users appear 
 
 ## Access and persistence
 
-Public visitors can read public shop profiles and active product listings. Each signed-in user can read only their own private account profile, drafts, and cart. Seller functions check the authenticated database identity before editing records. Draft/archived products are visible to their owner only. A seller's registration email stays private unless that seller separately publishes it in their store contact information.
+Visitors must sign in. Approved customers and sellers can read shop profiles and active product listings. Pending sellers can only read their own approval status; Workers have a separate restricted review queue. Each signed-in user can read only their own private account profile, drafts, and cart. Seller functions check the authenticated database identity before editing records. Draft/archived products are visible to their owner only. A seller's registration email stays private unless that seller separately publishes it in their store contact information.
 
-Only authentication session tokens are stored in browser storage, under separate customer/seller keys for this project. Account records and products stay online. Clearing browser storage signs you out without deleting your online records. Sign in on another device to access the same saved records. Guest carts remain specific to their browser until signed-in cart handling is used.
+Only authentication session tokens are stored in browser storage, under separate customer/seller/worker keys for this project. Account records and products stay online. Clearing browser storage signs you out without deleting your online records. Sign in on another device to access the same saved records. Customers must sign in to use their saved carts.
 
 Supabase applies its own authentication and API limits. Public-key access is protected by the SQL grants, Row Level Security, and owner-checking functions, not by hiding the key. Configure provider abuse protection and monitor usage for a production store. Checkout/order processing remains unconnected.
 
 ## Validation limits
 
-The adapter has local protocol/error/session tests, and the page, cart, seller editor, and PHP checks pass. Live read-only checks confirmed that the configured Supabase project serves the public catalog and rejects anonymous access to private profiles. No test users or products were added to the live database. Authenticated registration, saving, and cross-seller isolation still need live verification with real accounts. `supabase/verify-access.sql` supplies the database check; local mocked responses do not prove hosted security or connectivity.
+The adapter has local protocol/error/session tests, and the page, cart, seller editor, and PHP checks pass. Live read-only checks confirmed that the configured Supabase project rejects anonymous access to catalog and account data. No test users or products were added to the live database. Authenticated registration, saving, and cross-seller isolation still need live verification with real accounts. `supabase/verify-access.sql` supplies the database check; local mocked responses do not prove hosted security or connectivity.
 
 Official documentation: [Auth signup](https://supabase.com/docs/reference/javascript/auth-signup), [profile triggers](https://supabase.com/docs/guides/auth/managing-user-data), [Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security), and [public versus secret keys](https://supabase.com/docs/guides/api/api-keys).

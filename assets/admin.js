@@ -10,7 +10,8 @@
  function rows(users){
   get('user-rows').replaceChildren(...users.map(person=>{
    const tr=node('tr'),account=node('td'),identity=node('div','user-identity'),copy=node('div','user-copy');copy.append(node('strong','',person.name),node('small','','@'+person.username));identity.append(node('span','user-avatar',person.name.slice(0,1).toUpperCase()),copy);account.append(identity);
-   const access=node('td');access.append(node('span','role-badge '+(person.isAdmin?'admin':person.role),person.isAdmin?'Administrator':person.role==='seller'?'Seller':'Customer'));
+   const access=node('td');access.append(node('span','role-badge '+(person.isAdmin?'admin':person.role),person.isAdmin?'Administrator':person.role==='worker'?'Worker':person.role==='seller'?'Seller':'Customer'));
+   if(person.role==='seller'&&person.verification_status==='pending')access.append(node('span','verification-badge','Awaiting verification'));
    const actions=node('td'),button=node('button','delete-user',person.isAdmin?'Protected':'Delete');button.type='button';button.disabled=person.isAdmin;button.setAttribute('aria-label',(person.isAdmin?'Protected account ':'Delete account ')+person.username);button.addEventListener('click',()=>openDelete(person));actions.append(button);
    const joined=new Date(person.created_at);tr.append(account,access,node('td','user-email',person.email||'Not provided'),node('td','user-date',Number.isNaN(joined.getTime())?'—':joined.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'})),actions);return tr;
   }));get('users-empty').hidden=users.length!==0;
@@ -37,7 +38,7 @@
   catch(error){message('create-error',error.message);}
   finally{creating=false;input.password='';lock(get('create-user-form'),false);}
  });
- function openDelete(person){target=person;get('delete-user-form').reset();message('delete-error','');get('delete-description').textContent='Delete @'+person.username+'? This permanently removes their account'+(person.role==='seller'?', store, products, and drafts.': ' and saved cart.')+' This cannot be undone.';get('delete-dialog').showModal();get('delete-confirm').focus();}
+ function openDelete(person){target=person;get('delete-user-form').reset();message('delete-error','');get('delete-description').textContent='Delete @'+person.username+'? This permanently removes their account'+(person.role==='seller'?', store, products, and drafts.':person.role==='worker'?' and Worker access.':' and saved cart.')+' This cannot be undone.';get('delete-dialog').showModal();get('delete-confirm').focus();}
  get('delete-user-form').addEventListener('submit',async event=>{
   event.preventDefault();if(deleting||!target)return;message('delete-error','');if(get('delete-confirm').value!==target.username){message('delete-error','Enter the exact username: '+target.username);return;}deleting=true;lock(event.currentTarget,true);
   try{await Store.request('/admin/users','DELETE',{authId:target.auth_id,username:target.username});get('delete-dialog').close();message('admin-success','Deleted @'+target.username+'.');target=null;await load();}

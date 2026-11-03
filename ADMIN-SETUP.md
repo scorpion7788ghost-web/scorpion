@@ -1,6 +1,6 @@
 # Enable the connected store and administrator panel
 
-The customer and seller websites share your existing Supabase project. Both require sign-in. Customers use the profile icon to open My Account, Become a Seller, or Sign Out. Become a Seller opens the separate Seller Site login; administrators create seller accounts. There is no public registration form.
+The customer and seller websites share your existing Supabase project. Both require sign-in. Customers use the profile icon to open My Account, Become a Seller, or Sign Out. Become a Seller opens seller registration. Buyers and sellers can register; new sellers need Worker or Administrator approval. Only Administrators can create Worker accounts. For the existing live project, follow [WORKER-SETUP.md](WORKER-SETUP.md); the initial admin setup below is already complete.
 
 The administrator panel is at https://scorpion7788ghost-web.github.io/scorpion/admin.html and its login is at https://scorpion7788ghost-web.github.io/scorpion/admin-login.html. Sign in with the **customer** username **scorpion** and its existing password after completing the following setup.
 
@@ -12,7 +12,7 @@ This upgrade preserves accounts and products. It enables administrator access fo
 
 In **Authentication → Sign In / Providers**, turn **Allow new users to sign up** off. Keep the Email provider on. Account creation through the administrator service still works because it uses the server-side Auth admin API and confirms the internal username identifier itself.
 
-The SQL upgrade also rejects direct browser signup independently of this setting. Existing accounts remain usable. Administrator membership is stored in a protected table; changing browser storage, profile text, or Auth user metadata cannot grant administrator access.
+The initial admin upgrade rejects direct browser signup; the Worker upgrade replaces that rule with customer/seller signup and administrator-only Worker creation. Existing accounts remain usable. Administrator membership is stored in a protected table; changing browser storage, profile text, or Auth user metadata cannot grant administrator access.
 
 ## 2. Deploy the administrator service
 
@@ -38,7 +38,7 @@ This CLI command creates or updates the `store-admin` endpoint. When switching t
 
 Open the admin login and sign in as `scorpion`. The directory lists registered customers and sellers, with username search, role filters, and pagination.
 
-- **Add account** creates a customer or seller with a name, username, optional private contact email, and initial password. Share the credentials privately. New sellers automatically receive their own store.
+- **Add account** creates a customer, seller, or Worker with a name, username, optional private contact email, and initial password. Share the credentials privately. New sellers receive their own pending store and need approval through **Verify sellers** before they can access it.
 - **Delete** requires typing the exact username. Deleting a seller also removes their store, products, and drafts. Deleting a customer removes their saved cart. Administrator accounts are protected from this action.
 - Users can change their passwords from My Account. Customer and seller sessions remain separate, even when their usernames match. Administrators manage access without inheriting any seller's editing session.
 

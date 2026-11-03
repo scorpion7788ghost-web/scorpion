@@ -24,11 +24,12 @@ async function main(){
  const writes=[];const storage=new Map();
  function server(url,options){
   if(url.endsWith('/auth/v1/settings'))return {body:{mailer_autoconfirm:true,external:{email:true},disable_signup:false}};
+  if(url.endsWith('/rpc/lk_registration_status'))return {body:{version:1,enabled:true}};
   if(url.includes('/auth/v1/signup'))return {body:{access_token:'seller-access',refresh_token:'seller-refresh',expires_in:3600}};
   if(url.includes('/auth/v1/token?grant_type=refresh_token'))return {body:{access_token:'renewed-access',refresh_token:'renewed-refresh',expires_in:3600}};
   if(url.includes('/auth/v1/token?grant_type=password'))return {body:{access_token:'verified-access',refresh_token:'verified-refresh',expires_in:3600}};
   if(url.endsWith('/auth/v1/user'))return {body:{id:'authenticated-id'}};
-  if(url.includes('/rest/v1/lk_profiles'))return {body:[{id:'seller_owned',role:'seller',username:'real_seller',name:'Seller',email:'private@example.invalid'}]};
+  if(url.includes('/rest/v1/lk_profiles'))return {body:[{id:'seller_owned',role:'seller',username:'real_seller',name:'Seller',email:'private@example.invalid',verification_status:'approved'}]};
   if(url.includes('/rest/v1/lk_shops'))return {body:[{id:'seller_owned',profile:{id:'seller_owned',name:'Own shop'}}]};
   if(url.includes('/rest/v1/lk_products'))return {body:[]};
   if(url.includes('/rest/v1/lk_drafts'))return {body:[]};
@@ -85,10 +86,31 @@ async function main(){
   return server(url,options);
  }});
  const buyerState=await stockChanged.cloud.request('/bootstrap');assert.equal(buyerState.cart.product_live,2);assert.equal(Object.keys(buyerState.cart).length,1,'Stored carts follow current stock and active listings');
- const needsConfirm=app({handler:()=>({body:{mailer_autoconfirm:false,external:{email:true}}})});
- await assert.rejects(needsConfirm.cloud.request('/auth/register','POST',{role:'customer',name:'Name',username:'new_buyer',password:'ValidPassword123!'}),/administrator/);
+ const needsConfirm=app({handler:url=>url.endsWith('/rpc/lk_registration_status')?{body:{version:1,enabled:true}}:{body:{mailer_autoconfirm:false,external:{email:true}}}});
+ await assert.rejects(needsConfirm.cloud.request('/auth/register','POST',{role:'customer',name:'Name',username:'new_buyer',password:'ValidPassword123!'}),/turn off Confirm email/);
  assert(!needsConfirm.calls.some(call=>call.url.endsWith('/signup')),'Incorrect Auth configuration must be rejected before creating records');
+ const buyerSignup=app({handler:(url,options)=>url.includes('/lk_profiles')?{body:[{id:'buyer_new',role:'customer',username:'new_buyer',name:'Buyer',verification_status:'approved'}]}:server(url,options)});
+ await buyerSignup.cloud.request('/auth/register','POST',{role:'customer',name:'Buyer',username:'new_buyer',password:'ValidPassword123!'});
+ assert.equal(JSON.parse(buyerSignup.calls.find(call=>call.url.endsWith('/signup')).options.body).email,'new_buyer@customer.lk-store.invalid');
+ const migrationMissing=app({handler:()=>({status:404,body:{code:'PGRST202'}})});
+ await assert.rejects(migrationMissing.cloud.request('/auth/register','POST',{role:'customer',name:'Buyer',username:'new_buyer',password:'ValidPassword123!'}),/worker-verification.sql/);
+ assert(!migrationMissing.calls.some(call=>call.url.endsWith('/signup')),'Do not submit accounts before the verification database rules exist');
+ const pending=app({role:'seller',handler:(url,options)=>url.includes('/lk_profiles')?{body:[{id:'pending',role:'seller',username:'new_seller',name:'New seller',verification_status:'pending'}]}:server(url,options)});
+ await pending.cloud.request('/auth/register','POST',{role:'seller',name:'New seller',username:'new_seller',password:'ValidPassword123!',verification_status:'approved',roleOverride:'worker'});
+ const signup=JSON.parse(pending.calls.find(c=>c.url.endsWith('/signup')).options.body);
+ assert.equal(signup.data.role,'seller');assert.equal(signup.data.verification_status,undefined);assert.equal(signup.app_metadata,undefined);
+ const pendingState=await pending.cloud.request('/bootstrap');assert.equal(pendingState.user.verificationStatus,'pending');assert.equal(pendingState.products.length,0);assert.equal(pendingState.sellerStore,null);
+ assert(!pending.calls.some(c=>/\/lk_(shops|products|drafts|carts)/.test(c.url)),'Pending seller bootstrap never fetches protected store data');
+ assert.equal((await pending.cloud.request('/verification/status')).user.verificationStatus,'pending');
+ const workerApp=app({role:'worker',handler:(url,options)=>url.includes('/lk_profiles')?{body:[{id:'worker_owned',role:'worker',username:'staff',name:'Staff',verification_status:'approved'}]}:server(url,options)});
+ await assert.rejects(workerApp.cloud.request('/auth/register','POST',{role:'worker',name:'Staff'}),/Only an administrator/);assert.equal(workerApp.calls.length,0);
+ await workerApp.cloud.request('/auth/login','POST',{role:'worker',username:'staff',password:'ValidPassword123!'});
+ assert.equal(JSON.parse(workerApp.calls[0].options.body).email,'staff@worker.lk-store.invalid');
+ assert.equal((await workerApp.cloud.request('/bootstrap')).products.length,0);assert(!workerApp.calls.some(c=>/\/lk_(shops|products|drafts|carts)/.test(c.url)));
+ await workerApp.cloud.request('/staff/sellers?page=2&search=shop');assert.equal(JSON.parse(workerApp.calls.at(-1).options.body).page_number,2);
+ await workerApp.cloud.request('/staff/approve-seller','POST',{authId:'seller-id'});assert.equal(JSON.parse(workerApp.calls.at(-1).options.body).target_auth_id,'seller-id');
+ assert.equal((await app({storage:workerApp.storage,role:'customer'}).cloud.request('/bootstrap')).user,null,'Worker sessions do not grant customer access');
  assert.equal(app({config:{provider:'php'}}).cloud,undefined,'Local PHP path stays available');
- console.log('PASS: cloud configuration and secret-key guards, anonymous data isolation, username login and blocked signup, password-free session storage, separate role sessions, session renewal, product/draft RPC routing, surfaced server denials, and no offline fallback.');
+ console.log('PASS: public buyer/seller signup, admin-only Worker signup, registration readiness guards, pending seller isolation, Worker routing, configuration and secret-key guards, username login, password-free sessions, separate role sessions, renewal, product/draft RPC routing, and server denials.');
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

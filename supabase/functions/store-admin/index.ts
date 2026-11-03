@@ -31,7 +31,7 @@ export function createHandler({env, fetchImpl = fetch}: {env: (name: string) => 
   }
   return async (request: Request) => {
     const origin = request.headers.get('origin');
-    const headers: Record<string, string> = {'Content-Type': 'application/json', 'Cache-Control': 'no-store', Vary: 'Origin', 'Access-Control-Allow-Headers': 'authorization, apikey, content-type', 'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS'};
+    const headers: Record<string, string> = {'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-LK-Admin-Version': '2', Vary: 'Origin', 'Access-Control-Allow-Headers': 'authorization, apikey, content-type', 'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS'};
     if (origin && origins.includes(origin)) headers['Access-Control-Allow-Origin'] = origin;
     const reply = (data: unknown, status = 200) => new Response(JSON.stringify(data), {status, headers});
     try {
@@ -51,8 +51,8 @@ export function createHandler({env, fetchImpl = fetch}: {env: (name: string) => 
       if (request.method === 'GET') {
         const params = new URL(request.url).searchParams;
         const page = Number(params.get('page') || 1), role = params.get('role') || 'all', search = params.get('search') || '';
-        if (!Number.isInteger(page) || page < 1 || page > 100000 || !['all', 'customer', 'seller'].includes(role) || !/^[a-zA-Z0-9_]{0,30}$/.test(search)) throw new Failure(422, 'Choose a valid page, account type, or username search.');
-        const query = new URLSearchParams({select: 'auth_id,id,role,username,name,email,created_at', order: 'created_at.desc,auth_id.asc', limit: '25', offset: String((page - 1) * 25)});
+        if (!Number.isInteger(page) || page < 1 || page > 100000 || !['all', 'customer', 'seller', 'worker'].includes(role) || !/^[a-zA-Z0-9_]{0,30}$/.test(search)) throw new Failure(422, 'Choose a valid page, account type, or username search.');
+        const query = new URLSearchParams({select: 'auth_id,id,role,username,name,email,created_at,verification_status', order: 'created_at.desc,auth_id.asc', limit: '25', offset: String((page - 1) * 25)});
         if (role !== 'all') query.set('role', 'eq.' + role);
         if (search) query.set('username', 'ilike.*' + search.toLowerCase().replaceAll('_', '\\_') + '*');
         const {data, response} = await api('/rest/v1/lk_profiles?' + query, {count: true});
@@ -62,7 +62,7 @@ export function createHandler({env, fetchImpl = fetch}: {env: (name: string) => 
       const input = await readBody(request);
       if (request.method === 'POST') {
         const role = input.role;
-        if (!['customer', 'seller'].includes(role)) throw new Failure(422, 'Choose Customer or Seller.');
+        if (!['customer', 'seller', 'worker'].includes(role)) throw new Failure(422, 'Choose Customer, Seller, or Worker.');
         const username = text(input.username, 'username', 30, true).toLowerCase();
         if (!/^[a-z0-9_]{3,30}$/.test(username)) throw new Failure(422, 'Use 3–30 letters, numbers, or underscores for the username.');
         const name = text(input.name, 'name', 80, true), email = text(input.email ?? '', 'contact email', 120);

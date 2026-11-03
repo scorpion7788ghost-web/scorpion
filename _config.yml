@@ -15,3 +15,4 @@ exclude:
   - SUPABASE-SETUP.md
   - supabase
   - ADMIN-SETUP.md
+  - WORKER-SETUP.md

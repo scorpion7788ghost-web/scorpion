@@ -2,16 +2,17 @@
 (() => {
  'use strict';
  const access=document.body.dataset.access||'customer';
- const role=document.body.dataset.portal==='seller'?'seller':'customer';
+ const role=['seller','worker'].includes(document.body.dataset.portal)?document.body.dataset.portal:'customer';
  const publicPage=access==='public';
- function loginUrl(){return (access==='admin'?'admin-login.html':'login.html')+'?next='+encodeURIComponent(location.pathname.split('/').pop()+location.search);}
+ const loginPage=access==='admin'?'admin-login.html':role==='worker'?'worker-login.html':'login.html';
+ function loginUrl(){return loginPage+'?next='+encodeURIComponent(location.pathname.split('/').pop()+location.search);}
  function fail(message){
   let panel=document.getElementById('access-status');
   if(!panel){panel=document.createElement('section');panel.id='access-status';panel.className='access-status';panel.setAttribute('role','alert');document.body.prepend(panel);}
   const title=document.createElement('h1');title.textContent='Unable to open this page';
   const detail=document.createElement('p');detail.textContent=message;
   const retry=document.createElement('button');retry.textContent='Try again';retry.className='primary-button';retry.addEventListener('click',()=>location.reload());
-  const login=document.createElement('a');login.href=access==='admin'?'admin-login.html':'login.html';login.textContent='Go to sign in';
+  const login=document.createElement('a');login.href=loginPage;login.textContent='Go to sign in';
   panel.replaceChildren(title,detail,retry,login);
  }
  function profileMenu(user){
@@ -19,7 +20,7 @@
   if(!trigger||!menu)return;
   const name=document.getElementById('profile-name');if(name)name.textContent=user.name;
   const seller=document.getElementById('become-seller');
-  if(seller)seller.href=new URL('login.html',Store.state.sellerUrl||window.STORE_CONFIG.sellerUrl).href;
+  if(seller)seller.href=new URL('register.html',Store.state.sellerUrl||window.STORE_CONFIG.sellerUrl).href;
   function close(focus=false){menu.hidden=true;trigger.setAttribute('aria-expanded','false');if(focus)trigger.focus();}
   trigger.addEventListener('click',()=>{menu.hidden=!menu.hidden;trigger.setAttribute('aria-expanded',String(!menu.hidden));});
   document.addEventListener('click',event=>{if(!trigger.contains(event.target)&&!menu.contains(event.target))close();});
@@ -33,6 +34,14 @@
   if(Store.error){fail(Store.error);return false;}
   const user=Store.auth.current(role);
   if(!user){location.replace(loginUrl());return false;}
+  if(role==='seller'){
+   if(user.verificationStatus!=='approved'&&access!=='seller-pending'){location.replace('verification-pending.html');return false;}
+   if(user.verificationStatus==='approved'&&access==='seller-pending'){location.replace('dashboard.html');return false;}
+  }
+  if(access==='worker'){
+   try{const status=await Store.request('/staff/status');if(!status.isWorker){fail('This account does not have Worker access.');return false;}}
+   catch(error){fail(error.message);return false;}
+  }
   if(access==='admin'){
    try{const result=await Store.request('/admin/status');if(!result.isAdmin){fail('This account does not have administrator access.');return false;}}
    catch(error){fail(error.message);return false;}
