@@ -50,6 +50,43 @@ async function main(){
   await assert.rejects(as(admin,'insert into public.lk_admins(auth_id) values($1)',[buyer]));
   await assert.rejects(db.query('insert into public.lk_admins(auth_id) values($1)',[buyer]),/Only the Owner/);
   await assert.rejects(as(owner,'update lk_private.owner_account set auth_id=$1',[buyer]));
+  // Requested sample catalog: real image validation, ownership, RLS, and rerun safety.
+  const beforeOwner=(await db.query('select to_jsonb(p) as data from public.lk_profiles p where auth_id=$1',[owner])).rows[0].data;
+  const beforeMembers=(await db.query('select * from public.lk_admins order by auth_id')).rows;
+  const samples=fs.readFileSync('supabase/owner-sample-products.sql','utf8');
+  await db.exec(samples);await db.exec(samples);
+  const imported=(await db.query("select * from public.lk_products where data->>'sampleCollection'='owner-tech-v1' order by id")).rows;
+  assert.equal(imported.length,4,'Repeat imports do not duplicate products');
+  const ownerProfile=(await db.query('select * from public.lk_profiles where auth_id=$1',[owner])).rows[0];
+  for(const product of imported){
+   assert.equal(product.owner_id,owner);assert.equal(product.seller_id,ownerProfile.id);assert.equal(product.data.sellerId,ownerProfile.id);
+   assert.match(product.data.name,/Sample/);assert.equal(product.data.status,'active');assert.equal(product.data.isNew,true);
+   assert.equal(product.data.priceCents,Math.round(product.data.price*100));
+   assert.match(product.data.image,/^data:image\/jpeg;base64,/);
+   assert.equal(Buffer.from(product.data.image.split(',')[1],'base64').subarray(0,3).toString('hex'),'ffd8ff');
+  }
+  assert.deepEqual((await db.query('select to_jsonb(p) as data from public.lk_profiles p where auth_id=$1',[owner])).rows[0].data,beforeOwner,'Owner account is unchanged');
+  assert.deepEqual((await db.query('select * from public.lk_admins order by auth_id')).rows,beforeMembers,'No permissions granted');
+  assert.equal((await as(buyer,'select * from public.lk_products')).rows.length,4,'Approved Buyer can browse Owner products');
+  assert.equal((await as(buyer,'select * from public.lk_shops where owner_id=$1',[owner])).rows.length,1,'Owner storefront is visible');
+  assert.equal((await as(seller,'select * from public.lk_products')).rows.length,0,'Pending Seller cannot browse');
+  assert.equal((await as(worker,'select * from public.lk_products')).rows.length,0,'Worker cannot browse');
+  await db.exec('set role anon');try{await assert.rejects(db.query('select * from public.lk_products'));}finally{await db.exec('reset role');}
+  await assert.rejects(as(buyer,"update public.lk_products set data=data||'{\"stock\":999}'::jsonb where id=$1",[imported[0].id]));
+  await assert.rejects(rpc(seller,'public.lk_product_status($1,$2)',[imported[0].id,'archived']));
+  await db.query("update public.lk_profiles set verification_status='approved' where auth_id=$1",[seller]);
+  await assert.rejects(rpc(seller,'public.lk_product_status($1,$2)',[imported[0].id,'archived']),'Approved sellers cannot modify Owner inventory');
+  const sellerItem=await rpc(seller,'public.lk_save_product($1::jsonb,null)',[JSON.stringify({name:'Existing seller item',summary:'Keep this item',description:'An existing item',price:'12.00',stock:'2',category:'Tech',status:'active',sku:'REAL-KEEP'})]);
+  await rpc(buyer,'public.lk_save_cart($1::jsonb)',[JSON.stringify({[imported[0].id]:1})]);
+  await db.query("update public.lk_products set data=data||'{\"stock\":3,\"status\":\"archived\"}'::jsonb where id=$1",[imported[0].id]);
+  await db.exec(samples);
+  const preserved=(await db.query('select data from public.lk_products where id=$1',[imported[0].id])).rows[0].data;
+  assert.equal(preserved.stock,3);assert.equal(preserved.status,'archived','Rerun preserves later edits');
+  assert.equal((await db.query('select data from public.lk_products where id=$1',[sellerItem.id])).rows[0].data.name,'Existing seller item');
+  assert.equal((await as(buyer,'select * from public.lk_products where owner_id=$1',[owner])).rows.length,3,'Archived Owner items are hidden');
+  assert.equal((await as(owner,'select * from public.lk_products where owner_id=$1',[owner])).rows.length,4,'Owner can read their archived item');
+  await assert.rejects(rpc(admin,update,[owner,'Changed after import','',false]));
+  console.log('PASS: four image-backed Owner samples, private catalog access, cart, immutable account/permissions, seller isolation, duplicate prevention, and preserved existing records/edits.');
   await db.query('delete from auth.users where id=$1',[seller]);assert.equal((await db.query('select * from public.lk_profiles where auth_id=$1',[seller])).rows.length,0,'Non-Owner deletion still cascades');
   await db.exec('set role anon');try{await assert.rejects(db.query('select public.lk_access_status()'));assert.equal((await db.query('select public.lk_owner_status() as s')).rows[0].s.version,1);}finally{await db.exec('reset role');}
   console.log('PASS: pinned Owner, repeatable migration, exclusive Owner promotions/demotions, regular Admin scope, protected Owner profile/credentials/deletion/membership, spoof rejection, normal sign-in updates, and non-Owner deletion.');

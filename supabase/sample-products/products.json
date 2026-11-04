@@ -1,0 +1,42 @@
+[
+  {
+    "key": "headphones",
+    "name": "Studio Wireless Headphones (Sample)",
+    "price": 79.99,
+    "summary": "Sample listing: an over-ear audio pick for your everyday setup.",
+    "description": "A sample over-ear headphone listing for exploring the store. The photograph is illustrative; the name, price, and stock are demonstration values, not an offer for the pictured brand or model.",
+    "color": "#e7dbed",
+    "photographer": "Totte Annerbrink",
+    "source": "https://unsplash.com/photos/black-wireless-headphones-NehdOHCXsjs"
+  },
+  {
+    "key": "keyboard",
+    "name": "Glow Mechanical Keyboard (Sample)",
+    "price": 59.99,
+    "summary": "Sample listing: illuminated keys for a colorful desk setup.",
+    "description": "A sample mechanical keyboard listing with an illuminated-key photograph. The photograph is illustrative; the name, price, and stock are demonstration values, not an offer for a specific model.",
+    "color": "#d5dfeb",
+    "photographer": "Christian Wiediger",
+    "source": "https://unsplash.com/photos/closeup-photo-of-computer-keyboard-WkfDrhxDMC8"
+  },
+  {
+    "key": "mouse",
+    "name": "Precision Wireless Mouse (Sample)",
+    "price": 29.99,
+    "summary": "Sample listing: a minimal wireless mouse for your workspace.",
+    "description": "A sample wireless mouse listing for browsing, search, and cart previews. The photograph is illustrative; the name, price, and stock are demonstration values, not an offer for the pictured brand or model.",
+    "color": "#d7e2da",
+    "photographer": "Pascal M.",
+    "source": "https://unsplash.com/photos/black-cordless-computer-mouse-on-black-surface-4PchFKrUw84"
+  },
+  {
+    "key": "speaker",
+    "name": "Home Desktop Speaker (Sample)",
+    "price": 49.99,
+    "summary": "Sample listing: a clean, compact speaker for a modern room.",
+    "description": "A sample desktop speaker listing with a clean white finish. The photograph is illustrative; the name, price, and stock are demonstration values, not an offer for the pictured brand or model.",
+    "color": "#e8ddce",
+    "photographer": "Andres Jasso",
+    "source": "https://unsplash.com/photos/white-bluetooth-speaker-iVcd6fyPIFE"
+  }
+]
