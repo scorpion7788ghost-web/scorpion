@@ -8,10 +8,10 @@ class Node {
  setAttribute(name,value){this[name]=String(value);}
  addEventListener(name,callback){(this.events[name]??=[]).push(callback);}
  fire(name,extra={}){return Promise.all((this.events[name]||[]).map(callback=>callback({target:this,preventDefault(){},...extra})));}
- focus(){}
+ focus(){this.focused=true;}
  click(){return this.fire('click');}
  get validity(){return {badInput:false};}
- scrollIntoView(){}
+ scrollIntoView(){this.scrolledIntoView=true;}
  getBoundingClientRect(){return {width:200};}
  scrollBy({left}){this.scrollLeft+=left;}
 }
@@ -56,6 +56,11 @@ async function editor({saveProduct,saveDraft,brandEnabled=false}={}){
 async function main(){
  const home=await customer({page:'home'});
  assert.equal(home.node('#recommended-products').children.length,2);
+ home.node('#header-product-search').value='Acme';await home.node('#header-product-search').fire('input');
+ assert.equal(home.node('#product-search').value,'Acme');assert.equal(home.node('#recommended-products').children.length,1);
+ await home.node('#header-search-form').fire('submit');assert(home.node('#search-results').scrolledIntoView);assert(home.node('#recommended-heading').focused);
+ home.node('#product-search').value='Actual';await home.node('#product-search').fire('input');assert.equal(home.node('#header-product-search').value,'Actual');
+ await home.node('#clear-filters').fire('click');assert.equal(home.node('#header-product-search').value,'');
  home.node('#price-max').value='20';await home.node('#price-max').fire('input');assert.equal(home.node('#recommended-products').children.length,1);
  home.node('#filter-brand').value='brand:acme';await home.node('#filter-brand').fire('change');assert.equal(home.node('#empty-state').hidden,false);
  home.node('#price-min').value='100';await home.node('#price-min').fire('input');assert.equal(home.node('#filter-error').hidden,false);assert.equal(home.node('#empty-state').hidden,true);

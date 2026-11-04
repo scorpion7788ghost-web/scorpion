@@ -71,13 +71,19 @@ function renderRecommendations(){
 function initializeHome(){
   $('#new-products').replaceChildren(...products.filter(product=>product.isNew).map(product=>createCard(product,true)));
   $$('[data-category]').forEach(button=>button.addEventListener('click',()=>{selectedCategory=button.dataset.category;$$('[data-category]').forEach(item=>{const active=item===button;item.classList.toggle('active',active);item.setAttribute('aria-pressed',String(active));});renderRecommendations();}));
-  $('#product-search').addEventListener('input',renderRecommendations);
+  $('#product-search').addEventListener('input',()=>{$('#header-product-search').value=$('#product-search').value;renderRecommendations();});
+  $('#header-product-search').addEventListener('input',()=>{$('#product-search').value=$('#header-product-search').value;renderRecommendations();});
+  $('#header-search-form').addEventListener('submit',event=>{
+    event.preventDefault();$('#product-search').value=$('#header-product-search').value;renderRecommendations();
+    $('#recommended-heading').focus({preventScroll:true});
+    $('#search-results').scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'});
+  });
   for(const [value,label] of catalogBrands()){const option=element('option','',label);option.value=value;$('#filter-brand').append(option);}
   $('#filter-brand').addEventListener('change',renderRecommendations);
   for(const id of ['#price-min','#price-max'])$(id).addEventListener('input',renderRecommendations);
-  function resetSearch(){for(const id of ['#product-search','#filter-brand','#price-min','#price-max'])$(id).value='';$('[data-category="All"]').click();$('#product-search').focus();}
+  function resetSearch(){for(const id of ['#product-search','#header-product-search','#filter-brand','#price-min','#price-max'])$(id).value='';$('[data-category="All"]').click();$('#product-search').focus();}
   $('#reset-search').addEventListener('click',resetSearch);$('#clear-filters').addEventListener('click',resetSearch);
-  document.addEventListener('keydown',event=>{if(event.key==='/'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!document.activeElement.isContentEditable&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){event.preventDefault();$('#product-search').focus();}});
+  document.addEventListener('keydown',event=>{if(event.key==='/'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!document.activeElement.isContentEditable&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){event.preventDefault();$('#header-product-search').focus();}});
   if(!products.some(p=>p.isNew)){const empty=element('p','notice-text','No newly added products yet. New listings will appear here.');$('#new-products').after(empty);}
   renderRecommendations();
 }
