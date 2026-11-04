@@ -36,7 +36,7 @@
  window.addEventListener('lk-theme-change',sync);sync();
  function link(label,url){const element=document.createElement('a');element.textContent=label;element.href=url;return element;}
  function mount(user,status={}){
-  get('profile-caption').textContent=user?'SIGNED IN AS':'WELCOME';get('profile-name').textContent=user?.name||'Make yourself at home';
+  get('profile-caption').textContent=user?(status.isOwner?'OWNER':'SIGNED IN AS'):'WELCOME';get('profile-name').textContent=user?.name||'Make yourself at home';
   const links=get('profile-links');links.replaceChildren();
   if(user){
    links.append(link('My Account',role==='seller'?seller('account.html'):buyer(role==='worker'?'worker-account.html':'account.html')));

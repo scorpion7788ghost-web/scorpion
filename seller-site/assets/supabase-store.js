@@ -33,6 +33,7 @@
     let message=result.msg||result.message||result.error_description||result.error||'The hosted request could not be completed.';
     if(result.code==='42P01'||result.code==='PGRST202'||result.code==='PGRST205')message='Run the Supabase schema setup before using the store.';
     if(['/rest/v1/rpc/lk_directory','/rest/v1/rpc/lk_admin_update_account','/rest/v1/rpc/lk_chat_messages','/rest/v1/rpc/lk_chat_send','/rest/v1/rpc/lk_chat_inbox'].includes(path)&&result.code==='PGRST202')message='The new community tools need activation. The store owner must run community-tools.sql in Supabase.';
+    if(path==='/rest/v1/rpc/lk_access_status'&&result.code==='PGRST202')message='Owner protection needs activation. Run owner-access.sql in Supabase.';
     if(path==='/rest/v1/rpc/lk_is_admin'&&result.code==='PGRST202')message='Administrator setup is incomplete. Apply the admin-access.sql upgrade in Supabase.';
     if(['/rest/v1/rpc/lk_registration_status','/rest/v1/rpc/lk_staff_status','/rest/v1/rpc/lk_seller_reviews','/rest/v1/rpc/lk_approve_seller'].includes(path)&&result.code==='PGRST202')message='Registration and seller verification are not ready yet. The store owner needs to apply worker-verification.sql in Supabase.';
     if(response.status===429)message='Too many requests. Please wait and try again.';
@@ -99,7 +100,7 @@
  async function request(path,method='GET',data={}){
   configured();
   if(path==='/bootstrap'&&method==='GET')return bootstrap();
-  if(path==='/admin/status')return {isAdmin:(await access())?await rpc('lk_is_admin',{}):false};
+  if(path==='/admin/status'||path==='/admin/permissions')return (await access())?rpc('lk_access_status',{}):{isAdmin:false,isOwner:false};
   if(path==='/staff/status')return (await access())?rpc('lk_staff_status',{}):{isAdmin:false,isWorker:false};
   if((path.startsWith('/staff/directory?')||path.startsWith('/admin/directory?'))&&method==='GET'){const p=new URLSearchParams(path.split('?')[1]);return rpc('lk_directory',{page_number:Number(p.get('page')||1),role_filter:p.get('role')||'all',username_search:p.get('search')||''});}
   if(path==='/admin/account'&&method==='PATCH')return rpc('lk_admin_update_account',{target_auth_id:data.authId,display_name:data.name,contact_email:data.email,admin_access:data.isAdmin});

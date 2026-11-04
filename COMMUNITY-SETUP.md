@@ -11,3 +11,7 @@ The migration provides:
 Verify activation by calling `lk_community_status` using the existing public browser configuration: it returns `{"version":1}`. The SQL regression tests in `tests/community-database.test.cjs` use an isolated PostgreSQL database, not the live project.
 
 After running the SQL, refresh the website and verify with your own accounts: browse the Worker directory, edit another account from Admin → Admins, send a customer message through Contact Me, then reply from Admin → Messages. The original four themes remain, with Black Primary and White Primary added. Theme preferences are browser-specific and shared across both GitHub Pages sites. Decorative animated backgrounds appear only on customer pages and stop when reduced motion is requested.
+
+## Owner protection upgrade
+
+After installing [OWNER-SETUP.md](OWNER-SETUP.md), only the pinned Scorpion Owner may grant/remove Admin access or edit Admin accounts. The Owner itself is immutable. Regular Admins manage ordinary Buyer, Seller and Worker accounts. Apply `owner-access.sql` after the community migration; do not reinstall older permission migrations on their own.

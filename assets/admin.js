@@ -3,6 +3,11 @@
  if(!(await Store.accessReady))return;
  const get=id=>document.getElementById(id),all=selector=>[...document.querySelectorAll(selector)];
  const user=Store.auth.current(document.body.dataset.portal||'customer');get('admin-name').textContent=user.name;get('admin-year').textContent=new Date().getFullYear();
+ let permissions;
+ try{permissions=await Store.request('/admin/permissions');if(!permissions.isAdmin)throw new Error('Admin access is required.');}
+ catch(error){get('admin-error').textContent=error.message;get('admin-error').hidden=false;get('open-create').disabled=true;return;}
+ get('admin-role').textContent=permissions.isOwner?'OWNER':'ADMIN';
+ window.StoreProfile?.mount(user,permissions);
  let page=1,role='all',search='',total=0,sequence=0,creating=false,deleting=false,target=null;
  let editing=false,editTarget=null;
  function message(id,text){get(id).textContent=text;get(id).hidden=!text;}
@@ -11,10 +16,10 @@
  function rows(users){
   get('user-rows').replaceChildren(...users.map(person=>{
    const tr=node('tr'),account=node('td'),identity=node('div','user-identity'),copy=node('div','user-copy');copy.append(node('strong','',person.name),node('small','','@'+person.username));identity.append(node('span','user-avatar',person.name.slice(0,1).toUpperCase()),copy);account.append(identity);
-   const access=node('td');access.append(node('span','role-badge '+(person.isAdmin?'admin':person.role),person.isAdmin?'Admin':person.role==='worker'?'Worker':person.role==='seller'?'Seller':'Customer'));
+   const access=node('td');access.append(node('span','role-badge '+(person.isAdmin?'admin':person.role),person.isOwner?'Owner':person.isAdmin?'Admin':person.role==='worker'?'Worker':person.role==='seller'?'Seller':'Customer'));
    if(person.role==='seller'&&person.verification_status==='pending')access.append(node('span','verification-badge','Awaiting verification'));
    const actions=node('td'),button=node('button','delete-user',person.isAdmin?'Protected':'Delete');button.type='button';button.disabled=person.isAdmin;button.setAttribute('aria-label',(person.isAdmin?'Protected account ':'Delete account ')+person.username);button.addEventListener('click',()=>openDelete(person));actions.append(button);
-   const edit=node('button','admin-edit','Edit');edit.type='button';edit.disabled=person.id===user.id;edit.setAttribute('aria-label','Edit '+person.username);edit.addEventListener('click',()=>openEdit(person));actions.prepend(edit);
+   const edit=node('button','admin-edit','Edit');edit.type='button';edit.disabled=person.isOwner||person.id===user.id||(person.isAdmin&&!permissions.isOwner);edit.setAttribute('aria-label',person.isOwner?'Owner account is protected':'Edit '+person.username);edit.addEventListener('click',()=>openEdit(person));actions.prepend(edit);
    const joined=new Date(person.created_at);tr.append(account,access,node('td','user-email',person.email||'Not provided'),node('td','user-date',Number.isNaN(joined.getTime())?'—':joined.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'})),actions);return tr;
   }));get('users-empty').hidden=users.length!==0;
  }
@@ -29,13 +34,13 @@
  get('refresh-users').addEventListener('click',load);get('previous-page').addEventListener('click',()=>{page--;load();});get('next-page').addEventListener('click',()=>{page++;load();});
  get('admin-signout')?.addEventListener('click',async()=>{try{await Store.auth.signOut();location.replace('admin-login.html');}catch(error){message('admin-error',error.message);}});
  function lock(form,busy){form.querySelectorAll('input,select,button').forEach(control=>{control.disabled=busy;});}
- function openEdit(person){editTarget=person;get('edit-user-form').reset();get('edit-identity').textContent='@'+person.username;get('edit-name').value=person.name;get('edit-email').value=person.email||'';get('edit-base-role').textContent={customer:'Buyer',worker:'Worker',seller:'Seller'}[person.role];get('edit-access').value=person.isAdmin?'admin':'standard';message('edit-error','');get('edit-dialog').showModal();get('edit-name').focus();}
+ function openEdit(person){if(person.isOwner||person.id===user.id||(person.isAdmin&&!permissions.isOwner))return;editTarget=person;get('edit-user-form').reset();get('edit-identity').textContent='@'+person.username;get('edit-name').value=person.name;get('edit-email').value=person.email||'';get('edit-base-role').textContent={customer:'Buyer',worker:'Worker',seller:'Seller'}[person.role];get('edit-access').value=person.isAdmin?'admin':'standard';get('edit-access').disabled=!permissions.isOwner;get('edit-permission-note').textContent=permissions.isOwner?'Only you, the Owner, can grant or remove Admin access. Remove Admin access before deleting an Admin account.':'Only the Owner can change Admin permissions. You can edit this account’s name and contact email.';message('edit-error','');get('edit-dialog').showModal();get('edit-name').focus();}
  get('edit-dialog').addEventListener('cancel',event=>{if(editing)event.preventDefault();});
  get('edit-user-form').addEventListener('submit',async event=>{
   event.preventDefault();if(editing||!editTarget||!get('edit-confirm').checked)return;editing=true;message('edit-error','');
-  const input={authId:editTarget.auth_id,name:get('edit-name').value,email:get('edit-email').value,isAdmin:get('edit-access').value==='admin'};lock(event.currentTarget,true);
+  const input={authId:editTarget.auth_id,name:get('edit-name').value,email:get('edit-email').value,isAdmin:permissions.isOwner?get('edit-access').value==='admin':editTarget.isAdmin};lock(event.currentTarget,true);
   try{await Store.request('/admin/account','PATCH',input);get('edit-dialog').close();message('admin-success','Updated @'+editTarget.username+'.');editTarget=null;await load();}
-  catch(error){message('edit-error',error.message);}finally{editing=false;lock(get('edit-user-form'),false);}
+  catch(error){message('edit-error',error.message);}finally{editing=false;lock(get('edit-user-form'),false);get('edit-access').disabled=!permissions.isOwner;}
  });
  all('[data-close]').forEach(button=>button.addEventListener('click',()=>get(button.dataset.close).close()));
  get('create-dialog').addEventListener('cancel',event=>{if(creating)event.preventDefault();});get('delete-dialog').addEventListener('cancel',event=>{if(deleting)event.preventDefault();});

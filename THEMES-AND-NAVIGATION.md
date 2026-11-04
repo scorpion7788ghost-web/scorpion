@@ -20,3 +20,5 @@ The existing `scorpion` administrator remains authorized by its immutable Auth I
 Verification: `tests/profile-theme.test.cjs`, `tests/access.test.cjs`, `tests/auth-flows.test.cjs`, `tests/admin-function.test.cjs`, and `python tests/check-pages.py`. Browser visual inspection requires an available browser connection.
 
 The community upgrade adds an Admin side panel, read-only Worker directory, and private customer support messages. See [COMMUNITY-SETUP.md](COMMUNITY-SETUP.md) for the SQL activation and access rules. The initial scorpion Admin may explicitly grant or remove Admin access for other existing accounts; no account receives that permission automatically.
+
+The [Owner upgrade](OWNER-SETUP.md) pins Scorpion as Owner and limits Admin permission changes to that account. Profile menus and the account directory show the server-confirmed Owner label.
