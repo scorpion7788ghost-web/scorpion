@@ -47,6 +47,13 @@ async function main(){
  await seller.cloud.request('/seller/draft?key=new','DELETE',{});assert.equal(JSON.parse(writes[1].options.body).input,null);
  const customer=app({role:'customer',storage,handler:server});assert.equal((await customer.cloud.request('/bootstrap')).user,null,'Customer portal must not inherit seller session');
  const fresh=app({role:'seller',storage,handler:server});assert.equal((await fresh.cloud.request('/bootstrap')).user.id,'seller_owned','Sign-in session persists across page loads');
+ const brandReady=app({role:'seller',storage,handler:()=>({body:{brand:true,version:1}})});
+ assert.equal((await brandReady.cloud.request('/catalog/fields')).brand,true);
+ assert(brandReady.calls[0].url.endsWith('/rpc/lk_product_fields_status'));
+ const brandMissing=app({role:'seller',storage,handler:()=>({status:404,body:{code:'PGRST202',message:'Function not found'}})});
+ assert.equal((await brandMissing.cloud.request('/catalog/fields')).brand,false);
+ const brandFailure=app({role:'seller',storage,handler:()=>({status:503,body:{message:'Storage unavailable'}})});
+ await assert.rejects(brandFailure.cloud.request('/catalog/fields'),/Storage unavailable/);
  const tokenKey=[...storage.keys()].find(k=>k.endsWith(':seller'));const expired=JSON.parse(storage.get(tokenKey));expired.expires_at=0;storage.set(tokenKey,JSON.stringify(expired));
  const renewal=app({role:'seller',storage,handler:server});await renewal.cloud.request('/bootstrap');assert(renewal.calls.some(c=>c.url.includes('grant_type=refresh_token')));
  const refused=app({role:'seller',storage,handler:(url,options)=>url.includes('/rpc/')?{status:403,body:{message:'Ownership denied'}}:server(url,options)});

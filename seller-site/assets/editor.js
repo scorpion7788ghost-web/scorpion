@@ -15,9 +15,12 @@
   let saved = false;
   let requestBusy = false;
   let lockedControls = [];
-  const fields = {name:$('#new-name'),category:$('#new-category'),price:$('#new-price'),summary:$('#new-summary'),description:$('#new-description'),sku:$('#new-sku'),stock:$('#new-stock'),status:$('#new-status')};
+  const fields = {name:$('#new-name'),category:$('#new-category'),price:$('#new-price'),summary:$('#new-summary'),description:$('#new-description'),sku:$('#new-sku'),stock:$('#new-stock'),status:$('#new-status'),brand:$('#new-brand')};
+  let brandEnabled=false;
+  try{brandEnabled=(await Store.request('/catalog/fields')).brand===true;}catch{}
+  fields.brand.disabled=!brandEnabled;$('#brand-field').hidden=!brandEnabled;
   function showError(message){$('#editor-error').textContent=message;$('#editor-error').hidden=!message;}
-  function values(){return {name:fields.name.value.trim(),category:fields.category.value,price:fields.price.value,summary:fields.summary.value.trim(),description:fields.description.value.trim(),color:form.querySelector('[name="color"]:checked').value,isNew:$('#new-is-new').checked,image:uploadedImage,imageName:uploadedName,sku:fields.sku.value.trim(),stock:fields.stock.value,status:fields.status.value};}
+  function values(){return {name:fields.name.value.trim(),...(brandEnabled?{brand:fields.brand.value.trim()}:{}),category:fields.category.value,price:fields.price.value,summary:fields.summary.value.trim(),description:fields.description.value.trim(),color:form.querySelector('[name="color"]:checked').value,isNew:$('#new-is-new').checked,image:uploadedImage,imageName:uploadedName,sku:fields.sku.value.trim(),stock:fields.stock.value,status:fields.status.value};}
   function preview(){
     const data=values();
     $('#preview-name').textContent=data.name||'Your next good find';
@@ -100,7 +103,7 @@
   try{
     const draft=editingProduct?{...editingProduct,price:String(editingProduct.price),stock:String(editingProduct.stock)}:Store.db.getDraft(sellerUser.id,draftKey);
     if(draft&&typeof draft==='object'){
-      for(const [name,field] of Object.entries(fields))if(typeof draft[name]==='string')field.value=draft[name].slice(0,name==='description'?2000:name==='summary'?100:name==='name'?80:name==='sku'?40:30);
+      for(const [name,field] of Object.entries(fields))if(typeof draft[name]==='string')field.value=draft[name].slice(0,name==='description'?2000:name==='summary'?100:name==='name'?80:name==='sku'?40:name==='brand'?60:30);
       if(!productCategories.includes(fields.category.value))fields.category.value='';
       const color=[...form.querySelectorAll('[name="color"]')].find(input=>input.value===draft.color);if(color)color.checked=true;
       $('#new-is-new').checked=draft.isNew!==false;

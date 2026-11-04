@@ -9,6 +9,8 @@ class Node {
  addEventListener(name,callback){(this.events[name]??=[]).push(callback);}
  fire(name,extra={}){return Promise.all((this.events[name]||[]).map(callback=>callback({target:this,preventDefault(){},...extra})));}
  focus(){}
+ click(){return this.fire('click');}
+ get validity(){return {badInput:false};}
  scrollIntoView(){}
  getBoundingClientRect(){return {width:200};}
  scrollBy({left}){this.scrollLeft+=left;}
@@ -24,27 +26,47 @@ function base(){
 async function customer({page='cart',stock=3,cart={product_abc:1},signedIn=false,save}={}){
  const env=base();const items=[{...product,stock}];let persisted={...cart};
  env.document.body.dataset.page=page;env.window.location.search='?id=product_abc';
- Object.assign(env.context,{products:items,reloadProducts(){},productImage:p=>p.image,findProducts:()=>items,localStorage:{getItem:()=>JSON.stringify(persisted),setItem:(key,value)=>{persisted=JSON.parse(value);}},Store:{ready:Promise.resolve(),auth:{current:()=>signedIn?{id:'customer_test'}:null},db:{store:()=>null},getCart:()=>({...persisted}),saveCart:async input=>{if(save)await save(input);persisted={...input};return {...persisted};}}});
+ Object.assign(env.context,{products:items,reloadProducts(){},productImage:p=>p.image,productBrand:p=>p.brand||'',findProducts:()=>items,localStorage:{getItem:()=>JSON.stringify(persisted),setItem:(key,value)=>{persisted=JSON.parse(value);}},Store:{ready:Promise.resolve(),auth:{current:()=>signedIn?{id:'customer_test'}:null},db:{store:()=>null},getCart:()=>({...persisted}),saveCart:async input=>{if(save)await save(input);persisted={...input};return {...persisted};}}});
+ if(page==='home'){
+  items.push({...product,id:'product_other',price:50,brand:'Acme',category:'Accessories'});
+  env.context.Store.db.catalog=()=>items;env.context.Store.safeImage=v=>v;
+  vm.runInNewContext(fs.readFileSync('assets/catalog.js','utf8'),env.context);env.context.products=env.window.products;
+  const categories=['All','Tech','Accessories'].map(category=>{const button=env.node('[data-category="'+category+'"]');button.dataset.category=category;return button;});
+  env.document.querySelectorAll=selector=>selector==='[data-category]'?categories:selector==='.product-shelf'?[env.shelf]:[];
+ }
  vm.runInNewContext(fs.readFileSync('assets/site.js','utf8'),env.context);
  await env.window.customerReady;
  return {...env,persisted:()=>persisted};
 }
 function descendants(node){return node.children.flatMap(child=>typeof child==='object'?[child,...descendants(child)]:[]);}
 function deferred(){let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};}
-async function editor({saveProduct,saveDraft}={}){
+async function editor({saveProduct,saveDraft,brandEnabled=false}={}){
  const env=base();const form=env.node('#add-product-form');const color=new Node('input');color.value='#eeeeee';
- const inputs=['name','category','price','summary','description','sku','stock','status'].map(name=>env.node('#new-'+name));
+ const inputs=['name','category','price','summary','description','sku','stock','status','brand'].map(name=>env.node('#new-'+name));
  for(const input of inputs)input.value='';
  env.node('#new-category').value='Tech';env.node('#new-price').value='12.50';env.node('#new-stock').value='3';env.node('#new-status').value='active';
  const controls=[...inputs,color,env.node('#save-product'),env.node('#save-draft'),env.node('#remove-image')];
  form.querySelector=()=>color;form.querySelectorAll=selector=>selector==='[name="color"]'?[color]:controls;
  env.window.sellerReady=Promise.resolve();
- Object.assign(env.context,{$:env.node,sellerUser:{id:'seller_test'},sellerStore:{products:[]},productCategories:['Tech','Home','Accessories','Lifestyle'],money:n=>'$'+n,refreshSeller(){},Store:{safeImage:v=>v,db:{requireSeller:()=>({products:[]}),getDraft:()=>null,saveProduct:saveProduct||(()=>Promise.resolve({id:'product_abc'})),saveDraft:saveDraft||(()=>Promise.resolve())}}});
+ Object.assign(env.context,{$:env.node,sellerUser:{id:'seller_test'},sellerStore:{products:[]},productCategories:['Tech','Home','Accessories','Lifestyle'],money:n=>'$'+n,refreshSeller(){},Store:{request:async()=>({brand:brandEnabled}),safeImage:v=>v,db:{requireSeller:()=>({products:[]}),getDraft:()=>null,saveProduct:saveProduct||(()=>Promise.resolve({id:'product_abc'})),saveDraft:saveDraft||(()=>Promise.resolve())}}});
  vm.runInNewContext(fs.readFileSync('seller-site/assets/editor.js','utf8'),env.context);
- await Promise.resolve();await Promise.resolve();
+ await new Promise(resolve=>setImmediate(resolve));
  return {...env,form,controls};
 }
 async function main(){
+ const home=await customer({page:'home'});
+ assert.equal(home.node('#recommended-products').children.length,2);
+ home.node('#price-max').value='20';await home.node('#price-max').fire('input');assert.equal(home.node('#recommended-products').children.length,1);
+ home.node('#filter-brand').value='brand:acme';await home.node('#filter-brand').fire('change');assert.equal(home.node('#empty-state').hidden,false);
+ home.node('#price-min').value='100';await home.node('#price-min').fire('input');assert.equal(home.node('#filter-error').hidden,false);assert.equal(home.node('#empty-state').hidden,true);
+ await home.node('#clear-filters').fire('click');assert.equal(home.node('#recommended-products').children.length,2);assert.equal(home.node('#filter-error').hidden,true);assert(home.node('#clear-filters').disabled);
+ await home.node('[data-category="Accessories"]').click();assert.equal(home.node('#recommended-products').children.length,1);
+ home.node('#product-search').value='no-match';await home.node('#product-search').fire('input');assert.equal(home.node('#empty-state').hidden,false);
+ await home.node('#reset-search').fire('click');assert.equal(home.node('#recommended-products').children.length,2);
+ let brandSaved;
+ const branded=await editor({brandEnabled:true,saveProduct:async(id,input)=>{brandSaved=input.brand;return {id:'product_abc'};}});
+ assert(!branded.node('#brand-field').hidden);branded.node('#new-brand').value=' Acme ';await branded.form.fire('submit');assert.equal(brandSaved,'Acme');
+ const legacy=await editor();assert(legacy.node('#brand-field').hidden);assert(legacy.node('#new-brand').disabled);
  const capped=await customer({stock:2,cart:{product_abc:20,missing:5}});assert.equal(capped.node('#cart-count').textContent,2);
  const plus=descendants(capped.node('#cart-items')).find(n=>n.dataset.action==='plus');assert(plus.disabled,'Stock limit disables cart increase');
  const unavailable=await customer({stock:0,cart:{product_abc:2}});assert.equal(unavailable.node('#cart-count').textContent,0);assert.equal(unavailable.node('#cart-empty').hidden,false);

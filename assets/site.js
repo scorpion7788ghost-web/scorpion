@@ -51,20 +51,33 @@ function createCard(product,isNew=false){
 
 function renderRecommendations(){
   const query=$('#product-search').value;
-  const matches=findProducts(query,selectedCategory);
+  const priceInputs=[$('#price-min'),$('#price-max')];
+  const range=catalogPriceRange(...priceInputs.map(input=>input.value));
+  if(priceInputs.some(input=>input.validity.badInput))range.error='Enter a valid number for the price.';
+  const brand=$('#filter-brand').value;
+  priceInputs.forEach(input=>input.setAttribute('aria-invalid',String(Boolean(range.error))));
+  $('#filter-error').textContent=range.error;$('#filter-error').hidden=!range.error;
+  const matches=range.error?[]:findProducts(query,selectedCategory,{...range,brand});
   const shelf=$('#recommended-products');
   shelf.replaceChildren(...matches.map(product=>createCard(product)));
   shelf.scrollLeft=0;shelf.hidden=matches.length===0;
-  $('#empty-state').hidden=matches.length!==0;if(!products.length){$('#empty-state h3').textContent='New products are on the way';$('#empty-state p').textContent='Products will appear here after sellers publish them.';}
-  $('#search-status').textContent=query.trim()||selectedCategory!=='All'?`${matches.length} product${matches.length===1?'':'s'} found${selectedCategory!=='All'?` in ${selectedCategory}`:''}`:'';
+  $('#empty-state').hidden=Boolean(range.error)||matches.length!==0;
+  $('#empty-state h3').textContent=products.length?'No products match these filters':'New products are on the way';
+  $('#empty-state p').textContent=products.length?'Try another search, widen the price range, or clear your filters.':'Products will appear here after sellers publish them.';
+  $('#search-status').textContent=range.error?'Update the price range to see matching products.':`${matches.length} of ${products.length} product${products.length===1?'':'s'}${selectedCategory!=='All'?` in ${selectedCategory}`:''}`;
+  $('#clear-filters').disabled=!query&&!brand&&selectedCategory==='All'&&priceInputs.every(input=>input.value===''&&!input.validity.badInput);
   updateArrows(shelf);
 }
 function initializeHome(){
   $('#new-products').replaceChildren(...products.filter(product=>product.isNew).map(product=>createCard(product,true)));
   $$('[data-category]').forEach(button=>button.addEventListener('click',()=>{selectedCategory=button.dataset.category;$$('[data-category]').forEach(item=>{const active=item===button;item.classList.toggle('active',active);item.setAttribute('aria-pressed',String(active));});renderRecommendations();}));
   $('#product-search').addEventListener('input',renderRecommendations);
-  $('#reset-search').addEventListener('click',()=>{$('#product-search').value='';$('[data-category="All"]').click();$('#product-search').focus();});
-  document.addEventListener('keydown',event=>{if(event.key==='/'&&!['INPUT','TEXTAREA'].includes(document.activeElement.tagName)){event.preventDefault();$('#product-search').focus();}});
+  for(const [value,label] of catalogBrands()){const option=element('option','',label);option.value=value;$('#filter-brand').append(option);}
+  $('#filter-brand').addEventListener('change',renderRecommendations);
+  for(const id of ['#price-min','#price-max'])$(id).addEventListener('input',renderRecommendations);
+  function resetSearch(){for(const id of ['#product-search','#filter-brand','#price-min','#price-max'])$(id).value='';$('[data-category="All"]').click();$('#product-search').focus();}
+  $('#reset-search').addEventListener('click',resetSearch);$('#clear-filters').addEventListener('click',resetSearch);
+  document.addEventListener('keydown',event=>{if(event.key==='/'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!document.activeElement.isContentEditable&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)){event.preventDefault();$('#product-search').focus();}});
   if(!products.some(p=>p.isNew)){const empty=element('p','notice-text','No newly added products yet. New listings will appear here.');$('#new-products').after(empty);}
   renderRecommendations();
 }
@@ -75,7 +88,7 @@ function initializeProduct(){
   document.title=`${product.name} | LK Tech Store`;
   $('#breadcrumb-product').textContent=product.name;
   $('#product-title').textContent=product.name;
-  $('#detail-category').textContent=product.category;
+  $('#detail-category').textContent=[product.category,productBrand(product)].filter(Boolean).join(' · ');
   $('#detail-description').textContent=product.description;
   $('#detail-price').textContent=money(product.price);
   const image=element('img');image.src=productImage(product);image.alt=product.isCustom?product.name:`Illustration of ${product.name}`;image.width=400;image.height=380;

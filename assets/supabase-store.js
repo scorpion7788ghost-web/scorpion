@@ -150,6 +150,7 @@
    }
    try{await rpc('lk_update_account',{input:{name:data.name,email:data.email||''}});}catch(error){if(passwordChanged)throw new Error('Your password changed, but your profile details could not be saved. '+error.message);throw error;}return {user:await identity()};
   }
+  if(path==='/catalog/fields'&&method==='GET'){try{return await rpc('lk_product_fields_status');}catch(error){if(error.code==='PGRST202')return {brand:false};throw error;}}
   if(path==='/seller/store'&&method==='PATCH')return {store:await rpc('lk_update_shop',{input:data})};
   if(path==='/seller/products'&&method==='POST')return {product:await rpc('lk_save_product',{input:data,product_id:null})};
   const update=path.match(/^\/seller\/products\/(product_[a-f0-9]+)$/);
