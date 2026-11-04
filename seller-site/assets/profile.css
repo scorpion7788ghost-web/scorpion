@@ -15,6 +15,8 @@
 .theme-swatch.plum-light{background:linear-gradient(135deg,#f6f2f9 50%,#714495 50%)}
 .theme-swatch.ocean-dark{background:linear-gradient(135deg,#101b27 50%,#72c5e8 50%)}
 .theme-swatch.ocean-light{background:linear-gradient(135deg,#f1f7fb 50%,#19698a 50%)}
+.theme-swatch.black-dark{background:linear-gradient(135deg,#080808 65%,#fff 65%)}
+.theme-swatch.white-light{background:linear-gradient(135deg,#fff 65%,#080808 65%)}
 #theme-feedback{font-size:10px;line-height:1.6;color:var(--muted);margin:9px 4px 0}
 #theme-feedback:empty{display:none}
 .seller-header{overflow:visible;z-index:20}

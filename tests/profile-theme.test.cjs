@@ -22,7 +22,9 @@ function page({role='customer',access='customer',stored=null,blockedStorage=fals
  return {context,nodes,choices,documentEvents,events,saved,redirects,get signouts(){return signouts;},links:()=>nodes.get('profile-links').children.map(item=>[item.textContent,item.href])};
 }
 async function main(){
- let p=page();assert.equal(p.context.StoreTheme.current(),'plum-dark');assert.equal(p.choices.children.length,4);assert.deepEqual(p.links().map(l=>l[0]),['Sign In']);
+ let p=page();assert.equal(p.context.StoreTheme.current(),'plum-dark');assert.equal(p.choices.children.length,6);assert.deepEqual(p.links().map(l=>l[0]),['Sign In']);
+ p.choices.children[4].handlers.click();assert.equal(p.context.StoreTheme.current(),'black-dark');assert.equal(p.context.document.documentElement.style.colorScheme,'dark');
+ p.choices.children[5].handlers.click();assert.equal(p.context.StoreTheme.current(),'white-light');assert.equal(p.context.document.documentElement.style.colorScheme,'light');
  p.context.StoreProfile.mount({name:'Buyer',email:'scorpion@customer.lk-store.invalid'});
  assert.deepEqual(p.links().map(l=>l[0]),['My Account','Become a Seller'],'An email/name match cannot grant administrator UI');
  p.context.StoreProfile.mount({name:'Scorpion'},{isAdmin:true});assert.equal(p.links().at(-1)[0],'Admin Panel');
@@ -38,6 +40,6 @@ async function main(){
  p=page({role:'seller',access:'seller'});p.context.StoreProfile.mount({name:'Seller'});assert.deepEqual(p.links().map(l=>l[0]),['My Account','Buyer Site']);
  p=page({access:'admin'});p.context.StoreProfile.mount({name:'Admin'},{isAdmin:true});assert.deepEqual(p.links().map(l=>l[0]),['My Account','Seller','Worker','Buyer']);assert.equal(p.links()[2][1],'https://example.test/buyer/seller-reviews.html');
  await p.nodes.get('profile-signout').handlers.click();assert.equal(p.signouts,1);assert.equal(p.redirects[0],'https://example.test/buyer/admin-login.html');
- console.log('PASS: four persistent themes, cross-tab changes, invalid/blocked storage, guest menus, keyboard dismissal, per-role links, server-only admin visibility, and sign-out.');
+ console.log('PASS: six persistent themes, cross-tab changes, invalid/blocked storage, guest menus, keyboard dismissal, per-role links, server-only admin visibility, and sign-out.');
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

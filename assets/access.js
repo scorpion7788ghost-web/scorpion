@@ -30,7 +30,7 @@
   }
   let adminStatus={isAdmin:false};
   if(access==='admin'){
-   try{const result=await Store.request('/admin/status');adminStatus=result;if(!result.isAdmin){fail('This account does not have administrator access.');return false;}}
+   try{const result=await Store.request('/admin/status');adminStatus=result;if(!result.isAdmin){fail('This account does not have admin access.');return false;}}
    catch(error){fail(error.message);return false;}
   }
   document.body.classList.remove('auth-pending');

@@ -18,7 +18,7 @@
  async function enter(){
   if(role==='seller'&&Store.auth.current(role)?.verificationStatus!=='approved'){location.replace('verification-pending.html');return;}
   if(role==='worker'){const status=await Store.request('/staff/status');if(!status.isWorker)throw new Error('This account does not have Worker access.');}
-  if(admin||requestedAdmin){const status=await Store.request('/admin/status');if(!status.isAdmin)throw new Error('This account does not have administrator access.');}
+  if(admin||requestedAdmin){const status=await Store.request('/admin/status');if(!status.isAdmin)throw new Error('This account does not have admin access.');}
   location.replace(destination());
  }
  if(Store.auth.current(role)){try{await enter();return;}catch(error){get('auth-error').textContent=error.message;get('auth-error').hidden=false;}}

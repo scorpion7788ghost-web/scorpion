@@ -1,4 +1,4 @@
-/* Shared profile navigation. Links never grant a role or administrator access. */
+/* Shared profile navigation. Links never grant a role or admin access. */
 (() => {
  'use strict';
  const role=['seller','worker'].includes(document.body.dataset.portal)?document.body.dataset.portal:'customer';
@@ -17,7 +17,7 @@
   return [['Become a Seller',seller('register.html')],...(isAdmin?[['Admin Panel',buyer('admin.html')]]:[])];
  }
  const host=document.querySelector('[data-profile-host]');if(!host)return;
- host.innerHTML='<button id="profile-toggle" class="profile-toggle" type="button" aria-label="Open profile and theme options" aria-expanded="false" aria-controls="profile-dropdown"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 21v-2a7.5 7.5 0 0 1 15 0v2"/></svg></button><div id="profile-dropdown" class="profile-dropdown" hidden><div class="profile-identity"><small id="profile-caption">WELCOME</small><strong id="profile-name">Make yourself at home</strong></div><div id="profile-links" class="profile-links"></div><fieldset class="theme-picker"><legend>Appearance</legend><div class="theme-options"></div><p id="theme-feedback" role="status" aria-live="polite"></p></fieldset><button id="profile-signout" type="button" hidden>Sign Out</button><p id="profile-error" class="profile-error" role="alert" hidden></p></div>';
+ host.innerHTML='<button id="profile-toggle" class="profile-toggle" type="button" aria-label="Open profile and theme options" aria-expanded="false" aria-controls="profile-dropdown"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 21v-2a7.5 7.5 0 0 1 15 0v2"/></svg></button><div id="profile-dropdown" class="profile-dropdown" hidden><div class="profile-identity"><small id="profile-caption">WELCOME</small><strong id="profile-name">Make yourself at home</strong></div><div id="profile-links" class="profile-links"></div><fieldset class="theme-picker"><legend>Appearance</legend><div class="theme-options"></div><p id="theme-feedback" role="status" aria-live="polite"></p></fieldset><button id="profile-signout" type="button" hidden>Logout</button><p id="profile-error" class="profile-error" role="alert" hidden></p></div>';
  const get=id=>document.getElementById(id),trigger=get('profile-toggle'),menu=get('profile-dropdown');
  function close(focus=false){menu.hidden=true;trigger.setAttribute('aria-expanded','false');if(focus)trigger.focus();}
  trigger.addEventListener('click',()=>{menu.hidden=!menu.hidden;trigger.setAttribute('aria-expanded',String(!menu.hidden));});

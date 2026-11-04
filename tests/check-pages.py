@@ -20,6 +20,8 @@ for folder in [ROOT,ROOT/'seller-site']:
    elif url.fragment:assert url.fragment in ids,(path,reference)
   if folder==ROOT:assert 'href="add-product.html"' not in text
   body=next(a for t,a in parser.tags if t=='body')
+  if 'customer-backdrop' in body.get('class',''):
+   assert folder==ROOT and body.get('data-access') in ('customer','public') and body.get('data-portal','customer')=='customer' and body.get('data-admin-login')!='true',path
   assert body.get('data-access') in ('customer','seller','seller-pending','worker','admin','public'),path
   if body['data-access']=='public':assert 'assets/site.js' not in text,path
   if body.get('data-portal')=='worker':assert 'data-auth-mode="register"' not in text and 'href="register.html"' not in text,path
@@ -28,7 +30,7 @@ for folder in [ROOT,ROOT/'seller-site']:
 assert not (ROOT/'add-product.html').exists()
 assert not (ROOT/'assets/add-product.js').exists()
 assert (ROOT/'assets/store-api.js').read_bytes()==(ROOT/'seller-site/assets/store-api.js').read_bytes()
-for name in ['store-config.js','supabase-store.js','auth.js','access.js','access.css','account.js','verification.css','theme.js','themes.css','profile.js','profile.css']:
+for name in ['store-config.js','supabase-store.js','auth.js','access.js','access.css','account.js','verification.css','theme.js','themes.css','profile.js','profile.css','polish.css']:
  assert (ROOT/'assets'/name).read_bytes()==(ROOT/'seller-site/assets'/name).read_bytes(),name
 for folder in [ROOT,ROOT/'seller-site']:
  for page in folder.glob('*.html'):
