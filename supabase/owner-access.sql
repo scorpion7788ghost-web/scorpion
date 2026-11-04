@@ -5,6 +5,7 @@ create table if not exists lk_private.owner_account (
  singleton boolean primary key default true check(singleton),
  auth_id uuid not null unique
 );
+alter table lk_private.owner_account enable row level security;
 revoke all on lk_private.owner_account from public,anon,authenticated,service_role;
 do $$ declare owner_id uuid; begin
  if not exists(select 1 from lk_private.owner_account) then

@@ -2,7 +2,9 @@
 
 Run the complete [supabase/owner-access.sql](supabase/owner-access.sql) in [Supabase SQL Editor](https://supabase.com/dashboard/project/sukeowjxzqgszdvbpves/sql/new), after the existing community-tools upgrade. This is safe to rerun. No accounts or products are created or removed. The existing `rapid-handler` Edge Function does not need redeployment.
 
-The migration pins ownership to the Auth ID of the existing **customer account with username `scorpion`**. Display names, editable contact emails, other portals with the same username, browser flags and Auth user metadata cannot claim ownership. The private Owner record has no browser-accessible write path.
+The migration pins ownership to the Auth ID of the existing **customer account with username `scorpion`**. Display names, editable contact emails, other portals with the same username, browser flags and Auth user metadata cannot claim ownership. The private Owner table explicitly enables Row Level Security and revokes direct access from browser and service roles; only the protected database functions access it.
+
+If SQL Editor still shows the earlier warning about missing RLS, cancel and replace the entire editor contents with the updated SQL file. A destructive-operations warning can remain because the migration replaces triggers and defines guarded account-management functions containing DELETE statements. Running the migration does not delete existing accounts or products. Run the whole file and check the Results pane for success; a confirmation-dialog click alone does not establish that the transaction succeeded.
 
 | Action | Owner | Regular Admin |
 | --- | --- | --- |

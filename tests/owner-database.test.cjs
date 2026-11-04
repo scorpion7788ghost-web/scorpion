@@ -16,6 +16,12 @@ async function main(){
   await account(2,'customer','admin');await account(3,'customer','buyer');await account(4,'worker','scorpion');await account(5,'seller','seller');await account(6,'customer','peer');
   await rpc(owner,update,[admin,'Admin','',true]);await rpc(owner,update,[peer,'Peer Admin','',true]);
   const upgrade=fs.readFileSync('supabase/owner-access.sql','utf8');await db.exec(upgrade);await db.exec(upgrade);
+  assert.equal((await db.query("select relrowsecurity from pg_class where oid='lk_private.owner_account'::regclass")).rows[0].relrowsecurity,true,'Owner storage has RLS enabled');
+  for(const role of ['anon','authenticated','service_role']){
+   await db.exec('set role '+role);
+   try{await assert.rejects(db.query('select * from lk_private.owner_account'));await assert.rejects(db.query('delete from lk_private.owner_account'));}
+   finally{await db.exec('reset role');}
+  }
   assert.equal(await rpc(owner,'public.lk_is_owner()'),true);assert.equal(await rpc(owner,'public.lk_is_admin()'),true);
   assert.equal(await rpc(worker,'public.lk_is_owner()'),false,'Same username in another portal is not Owner');
   const permissions=await rpc(admin,'public.lk_access_status()');assert.equal(permissions.isAdmin,true);assert.equal(permissions.isOwner,false);
