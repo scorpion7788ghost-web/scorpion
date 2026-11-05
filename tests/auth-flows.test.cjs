@@ -23,6 +23,7 @@ async function main(){
  page=await authPage({role:'seller',nextUser:{role:'seller',verificationStatus:'pending'},next:'products.html'});await page.submit();assert.equal(page.redirects[0],'verification-pending.html');
  page=await authPage({role:'seller',user:{role:'seller',verificationStatus:'pending'}});assert.equal(page.redirects[0],'verification-pending.html');
  page=await authPage({role:'seller',user:{role:'seller',verificationStatus:'approved'},next:'https://evil.invalid/'});assert.equal(page.redirects[0],'dashboard.html');
+ page=await authPage({next:'search.html?q=headphones&brand=brand%3Aacme'});await page.submit();assert.equal(page.redirects[0],'search.html?q=headphones&brand=brand%3Aacme');
  page=await authPage({role:'worker',user:{role:'worker'}});assert.equal(page.redirects[0],'worker.html');
  page=await authPage({role:'worker',user:{role:'worker'},worker:false});assert.equal(page.redirects.length,0);assert.match(page.get('auth-error').textContent,/Worker access/);
  let waiting=await waitingPage();assert.equal([...waiting.timers.values()][0].ms,15000);await waiting.get('verification-refresh').handlers.click();assert.equal(waiting.calls,1);assert.equal(waiting.redirects.length,0);

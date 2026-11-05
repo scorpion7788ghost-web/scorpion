@@ -7,7 +7,7 @@
  const registering=document.body.dataset.authMode==='register';
  const requestedAdmin=/^(admin|seller-reviews)\.html\?portal=(worker|seller)$/.test(new URLSearchParams(location.search).get('next')||'');
  const get=id=>document.getElementById(id),form=get('auth-form');if(!form)return;
- const allowed=role==='worker'?['worker.html','worker-account.html']:role==='seller'?['dashboard.html','products.html','add-product.html','edit-product.html','orders.html','settings.html','account.html','shop.html']:['index.html','cart.html','product.html','contact.html','about.html','account.html','seller.html'];
+ const allowed=role==='worker'?['worker.html','worker-account.html']:role==='seller'?['dashboard.html','products.html','add-product.html','edit-product.html','orders.html','settings.html','account.html','shop.html']:['index.html','search.html','cart.html','product.html','contact.html','about.html','account.html','seller.html'];
  function destination(){
   if(admin)return 'admin.html';
   const next=new URLSearchParams(location.search).get('next')||'';

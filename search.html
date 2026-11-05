@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#18151e"><script src="assets/theme.js"></script>
+<meta name="description" content="Search products and refine your results by category, brand, and price.">
+<title>Search Products | LK Tech Store</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;450;500;550;600;650;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="assets/site.css"><script src="assets/store-config.js" defer></script><script src="assets/supabase-store.js" defer></script><script src="assets/store-api.js" defer></script><link rel="stylesheet" href="assets/access.css"><script src="assets/profile.js" defer></script><script src="assets/access.js" defer></script><script src="assets/catalog.js" defer></script><script src="assets/site.js" defer></script><script src="assets/search.js" defer></script>
+<link rel="stylesheet" href="assets/profile.css"><link rel="stylesheet" href="assets/themes.css"><link rel="stylesheet" href="assets/polish.css"><link rel="stylesheet" href="assets/search.css"></head>
+<body data-page="search" data-access="customer" class="auth-pending customer-backdrop">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header"><div class="header-inner header-with-search"><a class="brand" href="index.html" aria-label="LK Tech Store home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>LK Tech Store</a><nav aria-label="Main navigation"><a href="index.html">Home</a><a href="cart.html">Cart <span id="cart-count" class="cart-count">0</span></a><a href="contact.html">Contact Me</a><a href="about.html">About</a></nav><form id="header-search-form" class="header-search" action="search.html" method="get" role="search" aria-label="Search the store">
+<label class="sr-only" for="header-product-search">Search products or brands</label>
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
+<input id="header-product-search" name="q" type="search" maxlength="200" role="combobox" aria-autocomplete="list" aria-expanded="false" placeholder="Search products or brands..." autocomplete="off" enterkeyhint="search" aria-controls="search-suggestions">
+<button type="submit">Search</button>
+<div id="suggestions-panel" class="suggestions-panel" hidden><p id="suggestion-status" class="suggestion-status" role="status"></p><div id="search-suggestions" role="listbox" aria-label="Suggested products"></div><a id="all-search-results" class="all-search-results" href="search.html">See all results</a></div></form><div class="profile-menu" data-profile-host></div></div></header>
+<main id="main" class="page-wrap search-page">
+<div class="results-heading"><p class="eyebrow">FIND YOUR NEXT FAVORITE</p><h1 id="results-title">Search results</h1><p id="results-description" class="section-description">Explore products from our stores.</p></div>
+<div class="advanced-filters results-filters" role="group" aria-label="Filter search results">
+<div class="filter-field"><label for="filter-category">Category</label><select id="filter-category"><option value="All">All categories</option><option>Tech</option><option>Home</option><option>Accessories</option><option>Lifestyle</option></select></div>
+<div class="filter-field"><label for="filter-brand">Brand</label><select id="filter-brand"><option value="">All brands</option></select></div>
+<div class="filter-field"><label for="price-min">Minimum price (USD)</label><input id="price-min" type="number" min="0" max="999999.99" step="0.01" inputmode="decimal" placeholder="No minimum" aria-describedby="filter-error"></div>
+<div class="filter-field"><label for="price-max">Maximum price (USD)</label><input id="price-max" type="number" min="0" max="999999.99" step="0.01" inputmode="decimal" placeholder="No maximum" aria-describedby="filter-error"></div>
+<button id="clear-filters" class="filter-reset" type="button">Clear filters</button></div>
+<p id="filter-error" class="filter-error" role="alert" hidden></p>
+<p id="search-status" class="search-status" role="status"></p>
+<ul id="result-products" class="results-grid" aria-label="Search results"></ul>
+<div class="empty-state" id="results-empty" hidden><h2>No matching products</h2><p>Try different keywords in the search bar or adjust your filters.</p><button id="reset-result-filters" type="button">Clear filters</button><a class="text-link" href="search.html">Browse all products &rarr;</a></div>
+</main>
+<footer class="footer"><div class="footer-inner"><a class="footer-brand" href="index.html">LK Tech Store<span>Good finds for your everyday.</span></a><p>© <span id="year">2026</span> LK Tech Store. All rights reserved.</p><span class="footer-note">Prices · USD</span></div></footer>
+<div id="toast" class="toast" role="status"></div>
+</body></html>

@@ -56,17 +56,7 @@ async function editor({saveProduct,saveDraft,brandEnabled=false}={}){
 async function main(){
  const home=await customer({page:'home'});
  assert.equal(home.node('#recommended-products').children.length,2);
- home.node('#header-product-search').value='Acme';await home.node('#header-product-search').fire('input');
- assert.equal(home.node('#product-search').value,'Acme');assert.equal(home.node('#recommended-products').children.length,1);
- await home.node('#header-search-form').fire('submit');assert(home.node('#search-results').scrolledIntoView);assert(home.node('#recommended-heading').focused);
- home.node('#product-search').value='Actual';await home.node('#product-search').fire('input');assert.equal(home.node('#header-product-search').value,'Actual');
- await home.node('#clear-filters').fire('click');assert.equal(home.node('#header-product-search').value,'');
- home.node('#price-max').value='20';await home.node('#price-max').fire('input');assert.equal(home.node('#recommended-products').children.length,1);
- home.node('#filter-brand').value='brand:acme';await home.node('#filter-brand').fire('change');assert.equal(home.node('#empty-state').hidden,false);
- home.node('#price-min').value='100';await home.node('#price-min').fire('input');assert.equal(home.node('#filter-error').hidden,false);assert.equal(home.node('#empty-state').hidden,true);
- await home.node('#clear-filters').fire('click');assert.equal(home.node('#recommended-products').children.length,2);assert.equal(home.node('#filter-error').hidden,true);assert(home.node('#clear-filters').disabled);
  await home.node('[data-category="Accessories"]').click();assert.equal(home.node('#recommended-products').children.length,1);
- home.node('#product-search').value='no-match';await home.node('#product-search').fire('input');assert.equal(home.node('#empty-state').hidden,false);
  await home.node('#reset-search').fire('click');assert.equal(home.node('#recommended-products').children.length,2);
  let brandSaved;
  const branded=await editor({brandEnabled:true,saveProduct:async(id,input)=>{brandSaved=input.brand;return {id:'product_abc'};}});
