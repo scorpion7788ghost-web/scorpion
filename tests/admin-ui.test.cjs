@@ -1,13 +1,24 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-async function page(ownerAccess=true){
+async function page(ownerAccess=true,promotionFailure=false){
  const nodes=new Map(),requests=[];
  class Element{constructor(){this.handlers={};this.children=[];this.dataset={};this.value='';this.checked=false;this.disabled=false;this.hidden=false;this.textContent='';this.classList={toggle(){},remove(){}};}append(...a){this.children.push(...a);}prepend(...a){this.children.unshift(...a);}replaceChildren(...a){this.children=a;}setAttribute(){}addEventListener(k,v){this.handlers[k]=v;}querySelectorAll(){return [];}showModal(){this.open=true;}close(){this.open=false;}reset(){}focus(){}}
  const get=id=>{if(!nodes.has(id))nodes.set(id,new Element());return nodes.get(id);};
  const tabs=['all','worker','customer','seller','admin'].map(role=>{const b=new Element();b.dataset.role=role;return b;});
  const user={id:'customer_self',name:'Scorpion'};
  const other={id:'customer_other',auth_id:'other-id',username:'other',name:'Another Admin',role:'customer',isAdmin:true,email:'old@example.test',created_at:'2026-11-04T00:00:00Z'};
- const context={window:{},Date,URLSearchParams,document:{body:{dataset:{portal:'customer'}},getElementById:get,createElement:()=>new Element(),querySelectorAll:selector=>selector==='[data-role]'?tabs:[]},Store:{accessReady:Promise.resolve(true),auth:{current:()=>user},request:async(path,method,data)=>{requests.push({path,method,data});if(path==='/admin/permissions')return {isAdmin:true,isOwner:ownerAccess};if(path.startsWith('/admin/directory?'))return {users:[{...other,id:'customer_owner',username:'scorpion',isOwner:true},other,{...other,id:'customer_buyer',auth_id:'buyer-id',username:'buyer',isAdmin:false}],total:3};if(path==='/admin/account')return {ok:true};throw Error('Unexpected API call');}}};
+ const context={window:{},Date,URLSearchParams,document:{body:{dataset:{portal:'customer'}},getElementById:get,createElement:()=>new Element(),querySelectorAll:selector=>selector==='[data-role]'?tabs:[]},Store:{accessReady:Promise.resolve(true),auth:{current:()=>user},request:async(path,method,data)=>{requests.push({path,method,data});if(path==='/admin/permissions')return {isAdmin:true,isOwner:ownerAccess};if(path.startsWith('/admin/directory?'))return {users:[{...other,id:'customer_owner',username:'scorpion',isOwner:true},other,{...other,id:'customer_buyer',auth_id:'buyer-id',username:'buyer',isAdmin:false}],total:3};if(path==='/admin/users')return {user:{auth_id:'created-id',username:'new_admin',role:data.role}};if(path==='/admin/account'){if(promotionFailure&&data.authId==='created-id')throw Error('Grant unavailable');return {ok:true};}throw Error('Unexpected API call');}}};
  await vm.runInNewContext(fs.readFileSync('assets/admin.js','utf8'),context);
+ assert.equal(get('new-role').children.some(n=>n.value==='admin'),ownerAccess,'Only Owner sees the new Admin account choice');
+ for(const [field,value] of Object.entries({role:'admin',name:'New Admin',username:'new_admin',email:'',password:'ValidPassword123!'}))get('new-'+field).value=value;
+ await get('create-user-form').handlers.submit({preventDefault(){},currentTarget:get('create-user-form')});
+ if(ownerAccess){
+  assert.equal(requests.find(r=>r.path==='/admin/users').data.role,'customer','Create a normal identity before the Owner-authorized grant');
+  assert.equal(requests.find(r=>r.path==='/admin/account').data.isAdmin,true);
+  assert.equal(get('create-dialog').open,false);
+  if(promotionFailure){assert.match(get('admin-error').textContent,/was created, but Admin access was not granted/);assert.match(get('admin-error').textContent,/do not create it again/);return;}
+  assert.match(get('admin-success').textContent,/Created Admin/);
+ }else{assert(!requests.some(r=>r.path==='/admin/users'));assert.match(get('create-error').textContent,/Only the Owner/);}
+ requests.length=0;
  const ownActions=get('user-rows').children[0].children[4],otherActions=get('user-rows').children[1].children[4];assert.equal(ownActions.children[0].disabled,true);assert.equal(otherActions.children[0].disabled,!ownerAccess);assert.equal(otherActions.children[1].disabled,true,'Admin deletion remains protected');
  if(!ownerAccess){
   get('user-rows').children[2].children[4].children[0].handlers.click();assert.equal(get('edit-access').disabled,true);
@@ -22,5 +33,5 @@ async function page(ownerAccess=true){
  tabs[4].handlers.click();for(let i=0;i<6;i++)await Promise.resolve();assert.match(requests.at(-1).path,/role=admin/);assert.equal(get('directory-heading').textContent,'Admins');assert.equal(get('admin-inbox').hidden,true);
 
 }
-async function main(){await page(true);await page(false);console.log('PASS: Owner label/protection, exclusive Owner role controls, regular Admin detail editing, tampered select rejection, directory filters and saves.');}
+async function main(){await page(true);await page(false);await page(true,true);console.log('PASS: Owner-only Admin creation/promotion, partial-creation recovery, Owner protection, regular Admin editing, tampered select rejection, directory filters and saves.');}
 main().catch(error=>{console.error(error);process.exitCode=1;});

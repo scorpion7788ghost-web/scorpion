@@ -1,5 +1,19 @@
 # Activate the Scorpion Owner account
 
+## Owner-created Admins and access to all three sites
+
+After the original Owner setup below, run all of [supabase/admin-portals.sql](supabase/admin-portals.sql) in the same Supabase SQL Editor. It can be rerun and preserves existing accounts and products. No Edge Function redeployment is required.
+
+The Owner can choose **Admin** in **Add account**. This creates a Buyer identity and then grants Admin access using the existing Owner-authorized database function. If the grant fails, the UI reports that the Buyer was created and directs the Owner to **Edit → Role → Admin**, without repeating account creation. Existing users can also be promoted through Edit. Regular Admins cannot grant Admin permissions; the database independently enforces this rule.
+
+Approved Admins and the Owner can use the same username/password on the Buyer, Seller, and Admin login pages. On the current GitHub Pages sites, they also share a sign-in session and can switch using the profile menu. The account's original identity and role remain unchanged. Ordinary users retain their existing separate login access. If identical usernames/passwords exist in different account types, the login page prioritizes its native account type; sign in through the Admin's original portal before switching sites.
+
+An Admin's first Seller visit opens or creates only their own shop. Product edits, drafts, store settings, and cart writes still check the authenticated identity on the backend. Admin access does not permit modifying another seller's inventory. Removing Admin access immediately removes cross-role database privileges, while preserving the original account's normal access and stored data. The protected Owner remains uneditable. Shared logout clears the staff session across both current sites; deploying the sites on different origins would require signing in on each origin.
+
+Checks: `tests/admin-portals-database.test.cjs`, `tests/supabase-store.test.cjs`, and `tests/admin-ui.test.cjs` cover cross-role access, ordinary/pending-user denials, immediate revocation, private inventory, Owner-only grants, and partial creation recovery.
+
+## Original Owner setup
+
 Run the complete [supabase/owner-access.sql](supabase/owner-access.sql) in [Supabase SQL Editor](https://supabase.com/dashboard/project/sukeowjxzqgszdvbpves/sql/new), after the existing community-tools upgrade. This is safe to rerun. No accounts or products are created or removed. The existing `rapid-handler` Edge Function does not need redeployment.
 
 The migration pins ownership to the Auth ID of the existing **customer account with username `scorpion`**. Display names, editable contact emails, other portals with the same username, browser flags and Auth user metadata cannot claim ownership. The private Owner table explicitly enables Row Level Security and revokes direct access from browser and service roles; only the protected database functions access it.

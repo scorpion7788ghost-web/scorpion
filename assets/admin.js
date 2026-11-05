@@ -7,6 +7,7 @@
  try{permissions=await Store.request('/admin/permissions');if(!permissions.isAdmin)throw new Error('Admin access is required.');}
  catch(error){get('admin-error').textContent=error.message;get('admin-error').hidden=false;get('open-create').disabled=true;return;}
  get('admin-role').textContent=permissions.isOwner?'OWNER':'ADMIN';
+ if(permissions.isOwner){const option=document.createElement('option');option.value='admin';option.textContent='Admin — Buyer, Seller, and Admin access';get('new-role').append(option);}
  window.StoreProfile?.mount(user,permissions);
  let page=1,role='all',search='',total=0,sequence=0,creating=false,deleting=false,target=null;
  let editing=false,editTarget=null;
@@ -49,7 +50,15 @@
  get('show-new-password').addEventListener('click',()=>{const show=get('new-password').type==='password';get('new-password').type=show?'text':'password';get('show-new-password').textContent=show?'Hide':'Show';get('show-new-password').setAttribute('aria-label',show?'Hide initial password':'Show initial password');});
  get('create-user-form').addEventListener('submit',async event=>{
   event.preventDefault();if(creating)return;creating=true;message('create-error','');const input={};for(const field of ['role','name','username','email','password'])input[field]=get('new-'+field).value;lock(event.currentTarget,true);
-  try{const result=await Store.request('/admin/users','POST',input);get('create-dialog').close();message('admin-success','Created '+result.user.role+' account @'+result.user.username+'.');page=1;await load();}
+  try{
+   const makeAdmin=input.role==='admin';if(makeAdmin&&!permissions.isOwner)throw new Error('Only the Owner can create Admin accounts.');
+   const result=await Store.request('/admin/users','POST',{...input,role:makeAdmin?'customer':input.role});
+   if(makeAdmin){
+    try{await Store.request('/admin/account','PATCH',{authId:result.user.auth_id,name:input.name,email:input.email,isAdmin:true});}
+    catch(error){get('create-dialog').close();page=1;await load();message('admin-error','Buyer account @'+result.user.username+' was created, but Admin access was not granted. Use Edit on that account to grant Admin access; do not create it again. '+error.message);return;}
+   }
+   get('create-dialog').close();message('admin-success','Created '+(makeAdmin?'Admin':result.user.role)+' account @'+result.user.username+'.');page=1;await load();
+  }
   catch(error){message('create-error',error.message);}
   finally{creating=false;input.password='';lock(get('create-user-form'),false);}
  });

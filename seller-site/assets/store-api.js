@@ -19,7 +19,7 @@
  function banner(message){let node=document.getElementById('storage-service-status');if(!node){node=document.createElement('div');node.id='storage-service-status';node.setAttribute('role','alert');node.style.cssText='padding:16px 22px;background:#382032;color:#ffd5df;font:13px/1.7 Arial,sans-serif;position:relative;z-index:50;';document.body.prepend(node);}node.textContent=message;node.hidden=!message;}
  async function refresh(){try{const next=await request('/bootstrap');Object.assign(state,next);document.querySelectorAll('[data-customer-link]').forEach(link=>{if(next.customerUrl)link.href=next.customerUrl;});failure='';banner('');return state;}catch(error){failure=error.message;banner(failure);throw error;}}
  const auth={
-  current:role=>state.user?.role===role?state.user:null,
+  current:role=>state.user&&(state.user.role===role||(state.user.isAdmin===true&&['customer','seller'].includes(role)))?state.user:null,
   async signIn(role,username,password){await request('/auth/login','POST',{role,username,password});await refresh();return auth.current(role);},
   async register(role,input){await request('/auth/register','POST',{...input,role});await refresh();return auth.current(role);},
   async signOut(){await request('/auth/logout','POST',{});await refresh();},

@@ -25,6 +25,7 @@ async function main(){
  function server(url,options){
   if(url.endsWith('/auth/v1/settings'))return {body:{mailer_autoconfirm:true,external:{email:true},disable_signup:false}};
   if(url.endsWith('/rpc/lk_registration_status'))return {body:{version:1,enabled:true}};
+  if(url.endsWith('/rpc/lk_access_status'))return {body:{isAdmin:false,isOwner:false,portalAccessVersion:1}};
   if(url.includes('/auth/v1/signup'))return {body:{access_token:'seller-access',refresh_token:'seller-refresh',expires_in:3600}};
   if(url.includes('/auth/v1/token?grant_type=refresh_token'))return {body:{access_token:'renewed-access',refresh_token:'renewed-refresh',expires_in:3600}};
   if(url.includes('/auth/v1/token?grant_type=password'))return {body:{access_token:'verified-access',refresh_token:'verified-refresh',expires_in:3600}};
@@ -118,6 +119,46 @@ async function main(){
  await workerApp.cloud.request('/staff/approve-seller','POST',{authId:'seller-id'});assert.equal(JSON.parse(workerApp.calls.at(-1).options.body).target_auth_id,'seller-id');
  assert.equal((await app({storage:workerApp.storage,role:'customer'}).cloud.request('/bootstrap')).user,null,'Worker sessions do not grant customer access');
  assert.equal(app({config:{provider:'php'}}).cloud,undefined,'Local PHP path stays available');
+ // Admin membership is always fetched from the backend, never from saved metadata.
+ for(const nativeRole of ['customer','seller','worker']){
+  const sharedStorage=new Map();let membership=true,version=1;
+  const profile={id:nativeRole+'_admin',role:nativeRole,username:'staff_admin',name:'Admin',verification_status:'approved'};
+  function staffServer(url,options){
+   if(url.includes('grant_type=password'))return JSON.parse(options.body).email==='staff_admin@'+nativeRole+'.lk-store.invalid'
+    ?{body:{access_token:'admin-token',refresh_token:'admin-refresh',expires_in:3600}}
+    :{status:400,body:{error_code:'invalid_credentials'}};
+   if(url.endsWith('/rpc/lk_access_status'))return {body:{isAdmin:membership,isOwner:nativeRole==='customer',portalAccessVersion:version}};
+   if(url.includes('/lk_profiles'))return {body:[profile]};
+   if(url.endsWith('/rpc/lk_open_seller_shop'))return {body:{id:profile.id,name:'Staff shop'}};
+   if(url.includes('/lk_shops'))return {body:[{id:profile.id,profile:{id:profile.id,name:'Staff shop'}}]};
+   if(url.includes('/lk_carts'))return {body:[{items:{}}]};
+   return server(url,options);
+  }
+  const sellerLogin=app({role:'seller',storage:sharedStorage,handler:staffServer});
+  const result=await sellerLogin.cloud.request('/auth/login','POST',{role:'seller',username:'staff_admin',password:'ExistingPassword123!'});
+  assert.equal(result.user.role,nativeRole,'Portal switching never changes the account base role');assert.equal(result.user.isAdmin,true);
+  assert.equal((await sellerLogin.cloud.request('/bootstrap')).sellerStore.profile.id,profile.id);
+  assert.equal(sharedStorage.size,1);assert([...sharedStorage.keys()][0].endsWith(':staff'),'One shared admin session avoids duplicate refresh tokens');
+  const buyerLogin=app({role:'customer',storage:sharedStorage,handler:staffServer});
+  assert.equal((await buyerLogin.cloud.request('/bootstrap')).user.id,profile.id,'Buyer portal inherits verified admin identity');
+  assert(!buyerLogin.calls.some(c=>c.url.includes('grant_type=password')),'Switching portal does not require another password');
+  assert.equal((await buyerLogin.cloud.request('/admin/status')).isAdmin,true);
+  version=0;await assert.rejects(sellerLogin.cloud.request('/bootstrap'),/admin-portals.sql/);version=1;
+  await sellerLogin.cloud.request('/me','PATCH',{name:'Updated',email:'',password:'ChangedPassword123!',currentPassword:'ExistingPassword123!'});
+  const passwordCall=sellerLogin.calls.filter(c=>c.url.includes('grant_type=password')).at(-1);assert.equal(JSON.parse(passwordCall.options.body).email,'staff_admin@'+nativeRole+'.lk-store.invalid','Password verification uses the original account type');
+  membership=false;
+  const revoked=app({role:nativeRole==='seller'?'customer':'seller',storage:sharedStorage,handler:staffServer});
+  await assert.rejects(revoked.cloud.request('/bootstrap'),/correct customer or seller/,'Revoked Admin cannot retain cross-portal access');
+  membership=true;await sellerLogin.cloud.request('/auth/login','POST',{role:'seller',username:'staff_admin',password:'ExistingPassword123!'});
+  await sellerLogin.cloud.request('/auth/logout','POST');assert.equal(sharedStorage.size,0);
+  assert.equal((await buyerLogin.cloud.request('/bootstrap')).user,null,'Already open Buyer tabs stop using a cleared shared session');
+  assert.equal((await app({role:'customer',storage:sharedStorage,handler:staffServer}).cloud.request('/bootstrap')).user,null);
+  membership=false;
+  const denied=app({role:nativeRole==='seller'?'customer':'seller',handler:staffServer});
+  await assert.rejects(denied.cloud.request('/auth/login','POST',{role:nativeRole==='seller'?'customer':'seller',username:'staff_admin',password:'ExistingPassword123!'}),/incorrect/);
+  assert.equal(denied.storage.size,0,'Cross-portal ordinary account login never persists a session');
+ }
+ console.log('PASS: Admin/Owner native credentials across Buyer/Seller/Admin, shared sessions, server-verified privileges, revocation, cross-portal logout, original-role password checks, and migration readiness.');
  console.log('PASS: public buyer/seller signup, admin-only Worker signup, registration readiness guards, pending seller isolation, Worker routing, configuration and secret-key guards, username login, password-free sessions, separate role sessions, renewal, product/draft RPC routing, and server denials.');
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

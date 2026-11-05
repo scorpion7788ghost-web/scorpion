@@ -8,9 +8,11 @@
  const key=config.supabaseKey||'';
  const adminFunction=config.supabaseAdminFunction??'store-admin';
  const adminPath='/functions/v1/'+adminFunction;
- const storageKey='lk-auth-v2:'+url+':'+role;
+ const roleKey='lk-auth-v2:'+url+':'+role;
+ const staffKey='lk-auth-v2:'+url+':staff';
+ let storageKey=roleKey;
  let session=null,refreshing=null;
- try{session=JSON.parse(localStorage.getItem(storageKey)||'null');}catch{}
+ try{if(localStorage.getItem(staffKey))storageKey=staffKey;session=JSON.parse(localStorage.getItem(storageKey)||'null');}catch{}
  function configured(){
   if(!/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(url)||!key)throw new Error('Online storage setup is incomplete. Connect the Supabase project using the Project URL and publishable key.');
   if(key.startsWith('sb_secret_'))throw new Error('Use a public publishable key, never a Supabase secret key.');
@@ -38,7 +40,8 @@
     if(['/rest/v1/rpc/lk_registration_status','/rest/v1/rpc/lk_staff_status','/rest/v1/rpc/lk_seller_reviews','/rest/v1/rpc/lk_approve_seller'].includes(path)&&result.code==='PGRST202')message='Registration and seller verification are not ready yet. The store owner needs to apply worker-verification.sql in Supabase.';
     if(response.status===429)message='Too many requests. Please wait and try again.';
     if(path.startsWith('/auth/')&&response.status===400&&result.error_code==='invalid_credentials')message='Username or password is incorrect for this account type.';
-    const error=new Error(message);error.status=response.status;error.code=result.code;throw error;
+    if(path==='/rest/v1/rpc/lk_open_seller_shop'&&result.code==='PGRST202')message='Admin seller access needs activation. Ask the Owner to run admin-portals.sql in Supabase.';
+    const error=new Error(message);error.status=response.status;error.code=result.code||result.error_code;throw error;
    }
    return result;
   }catch(error){
@@ -56,6 +59,8 @@
   remember({access_token:result.access_token,refresh_token:result.refresh_token,expires_at:Math.floor(Date.now()/1000)+(result.expires_in||3600)});
  }
  async function access(){
+  // Other portal tabs may refresh or clear this same session.
+  try{session=JSON.parse(localStorage.getItem(storageKey)||'null');}catch{session=null;}
   if(!session)return null;
   if(session.expires_at>Date.now()/1000+60)return session.access_token;
   if(!refreshing)refreshing=(async()=>{try{const next=await wire('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:{refresh_token:session.refresh_token}});keepAuth(next);return session.access_token;}catch(error){if(error.status===400||error.status===401)remember(null);throw error;}finally{refreshing=null;}})();
@@ -63,31 +68,39 @@
  }
  async function rows(table,query=''){return wire('/rest/v1/'+table+'?'+query,{token:await access()});}
  async function rpc(name,args){const token=await access();if(!token)throw new Error('Please sign in.');return wire('/rest/v1/rpc/'+name,{method:'POST',body:args,token});}
- function loginEmail(username){const value=String(username||'').trim().toLowerCase();if(!/^[a-z0-9_]{3,30}$/.test(value))throw new Error('Use 3–30 letters, numbers, or underscores for your username.');return value+'@'+role+'.lk-store.invalid';}
+ function loginEmail(username,accountRole=role){const value=String(username||'').trim().toLowerCase();if(!/^[a-z0-9_]{3,30}$/.test(value))throw new Error('Use 3–30 letters, numbers, or underscores for your username.');return value+'@'+accountRole+'.lk-store.invalid';}
  function validatePassword(password){if(typeof password!=='string'||new TextEncoder().encode(password).length<12||new TextEncoder().encode(password).length>72)throw new Error('Use a password between 12 and 72 bytes.');}
  async function identity(){
   const token=await access();if(!token)return null;
   try{await wire('/auth/v1/user',{token});}catch(error){if(error.status===401||error.status===403){remember(null);return null;}throw error;}
   const mine=await rows('lk_profiles','select=*');
   const profile=mine[0];if(!profile)throw new Error('This account has no store profile. Run the Supabase schema setup before registering accounts.');
-  if(profile.role!==role){remember(null);throw new Error('Sign in through the correct customer or seller website.');}
+  const permissions=await rpc('lk_access_status',{});
+  const isAdmin=permissions.isAdmin===true&&profile.verification_status==='approved';
+  if(profile.role!==role&&!(isAdmin&&['customer','seller'].includes(role))){remember(null);throw new Error('Sign in through the correct customer or seller website.');}
+  if(isAdmin&&storageKey!==staffKey){const previousKey=storageKey;storageKey=staffKey;remember(session);localStorage.removeItem(previousKey);}
+  else if(!isAdmin&&storageKey===staffKey){storageKey=roleKey;remember(session);localStorage.removeItem(staffKey);}
   if(profile.role==='seller'&&!['pending','approved'].includes(profile.verification_status))throw new Error('Seller verification setup is incomplete. The store owner needs to apply worker-verification.sql in Supabase.');
-  return {id:profile.id,role:profile.role,username:profile.username,name:profile.name,email:profile.email,verificationStatus:profile.verification_status,createdAt:profile.created_at,updatedAt:profile.updated_at};
+  return {id:profile.id,role:profile.role,isAdmin,isOwner:isAdmin&&permissions.isOwner===true,portalAccessVersion:permissions.portalAccessVersion||0,username:profile.username,name:profile.name,email:profile.email,verificationStatus:profile.verification_status,createdAt:profile.created_at,updatedAt:profile.updated_at};
  }
  async function bootstrap(){
   configured();
   const user=await identity();
-  if(!user||user.role==='worker'||(user.role==='seller'&&user.verificationStatus!=='approved'))return {portal:role,user,stores:[],products:[],sellerStore:null,cart:{},orders:[],csrf:'',customerUrl:config.customerUrl,sellerUrl:config.sellerUrl};
+  if(!user||role==='worker'||(user.role==='seller'&&user.verificationStatus!=='approved'))return {portal:role,user,stores:[],products:[],sellerStore:null,cart:{},orders:[],csrf:'',customerUrl:config.customerUrl,sellerUrl:config.sellerUrl};
+  if(role==='seller'&&user.isAdmin){
+   if(user.portalAccessVersion<1)throw new Error('Admin seller access needs activation. Ask the Owner to run admin-portals.sql in Supabase.');
+   await rpc('lk_open_seller_shop',{});
+  }
   const [shops,publicProducts]=await Promise.all([rows('lk_shops','select=id,profile'),rows('lk_products','select=data&status=eq.active&order=created_at.desc')]);
   const products=publicProducts.map(row=>row.data);
   const stores=shops.map(row=>({profile:row.profile,products:products.filter(p=>p.sellerId===row.id)}));
   let sellerStore=null,cart={};
-  if(user?.role==='seller'){
+  if(role==='seller'){
    const [owned,drafts]=await Promise.all([rows('lk_products','select=data&seller_id=eq.'+encodeURIComponent(user.id)+'&order=created_at.desc'),rows('lk_drafts','select=draft_key,data')]);
    const shop=shops.find(s=>s.id===user.id);if(!shop)throw new Error('Your seller store record is missing.');
    sellerStore={profile:shop.profile,products:owned.map(row=>row.data),orders:[],drafts:Object.fromEntries(drafts.map(row=>[row.draft_key,row.data]))};
   }
-  if(user?.role==='customer'){
+  if(role==='customer'){
    const saved=await rows('lk_carts','select=items');
    const available=new Map(products.map(product=>[product.id,product]));
    for(const [id,quantity] of Object.entries(saved[0]?.items||{})){
@@ -131,10 +144,22 @@
   }
   if(path==='/auth/login'&&method==='POST'){
    checkStorage();if(data.role!==role)throw new Error('Use the correct account website.');
-   const result=await wire('/auth/v1/token?grant_type=password',{method:'POST',body:{email:loginEmail(data.username),password:data.password}});keepAuth(result);return {user:await identity()};
+   // Native accounts retain priority. Other account types must prove Admin access.
+   const candidates=role==='worker'?['worker']:[role,...['customer','seller','worker'].filter(candidate=>candidate!==role)];
+   for(const candidate of candidates){
+    let result;
+    try{result=await wire('/auth/v1/token?grant_type=password',{method:'POST',body:{email:loginEmail(data.username,candidate),password:data.password}});}
+    catch(error){if(error.code==='invalid_credentials')continue;throw error;}
+    if(candidate!==role){
+     const status=await wire('/rest/v1/rpc/lk_access_status',{method:'POST',body:{},token:result.access_token});
+     if(status.isAdmin!==true){await wire('/auth/v1/logout?scope=local',{method:'POST',token:result.access_token});continue;}
+    }
+    localStorage.removeItem(staffKey);storageKey=roleKey;keepAuth(result);return {user:await identity()};
+   }
+   throw new Error('Username or password is incorrect for this account type.');
   }
   if(path==='/auth/logout'&&method==='POST'){
-   const token=await access();if(token)await wire('/auth/v1/logout?scope=local',{method:'POST',token});remember(null);return {ok:true};
+   const shared=storageKey===staffKey;const token=await access();if(token)await wire('/auth/v1/logout?scope=local',{method:'POST',token});remember(null);if(shared)for(const portal of ['customer','seller','worker','staff'])localStorage.removeItem('lk-auth-v2:'+url+':'+portal);return {ok:true};
   }
   if(path==='/me'&&method==='PATCH'){
    const user=await identity();if(!user)throw new Error('Please sign in.');
@@ -143,7 +168,7 @@
    let passwordChanged=false;
    if(data.password){
     validatePassword(data.password);
-    const verified=await wire('/auth/v1/token?grant_type=password',{method:'POST',body:{email:loginEmail(user.username),password:data.currentPassword}});
+    const verified=await wire('/auth/v1/token?grant_type=password',{method:'POST',body:{email:loginEmail(user.username,user.role),password:data.currentPassword}});
     keepAuth(verified);
     await wire('/auth/v1/user',{method:'PUT',token:await access(),body:{password:data.password}});
     passwordChanged=true;

@@ -34,10 +34,10 @@
    catch(error){fail(error.message);return false;}
   }
   document.body.classList.remove('auth-pending');
-  window.StoreProfile?.mount(user,adminStatus);
+  window.StoreProfile?.mount(user,user.isAdmin?{isAdmin:true,isOwner:user.isOwner}:adminStatus);
   if(access!=='admin'&&window.StoreCloud?.enabled)Store.request('/admin/status').then(status=>window.StoreProfile?.mount(user,status)).catch(()=>{});
   return true;
  })();
  window.addEventListener('pageshow',event=>{if(event.persisted&&!publicPage)location.reload();});
- window.addEventListener('storage',event=>{if(!publicPage&&event.key?.startsWith('lk-auth-v2:')&&event.key.endsWith(':'+role))location.reload();});
+ window.addEventListener('storage',event=>{if(!publicPage&&(event.key===null||(event.key?.startsWith('lk-auth-v2:')&&(event.key.endsWith(':'+role)||event.key.endsWith(':staff')))))location.reload();});
 })();
