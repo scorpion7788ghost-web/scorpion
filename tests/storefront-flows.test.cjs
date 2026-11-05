@@ -14,20 +14,28 @@ class Node {
  scrollIntoView(){this.scrolledIntoView=true;}
  getBoundingClientRect(){return {width:200};}
  scrollBy({left}){this.scrollLeft+=left;}
+ querySelector(selector){return selector==='.product-card'?this.children.find(child=>child.className==='product-card')||null:null;}
 }
 const product={id:'product_abc',name:'Actual script check',summary:'Only in isolated tests',description:'No live records',category:'Tech',price:12.5,stock:3,color:'#eeeeee',sellerId:'seller_test',isCustom:true,image:'assets/products/placeholder.svg'};
 function base(){
  const nodes=new Map();const node=id=>{if(!nodes.has(id))nodes.set(id,new Node());return nodes.get(id);};
  const shelf=node('.product-shelf');
- const document={body:{dataset:{}},activeElement:{tagName:'BODY'},createElement:tag=>new Node(tag),addEventListener(){},querySelector:node,querySelectorAll:selector=>selector==='.product-shelf'?[shelf]:[]};
- const window={addEventListener(){},matchMedia:()=>({matches:false}),location:{search:''}};
- return {nodes,node,shelf,document,window,context:{window,document,location:window.location,URLSearchParams,Intl,Number,Promise,setTimeout:()=>1,clearTimeout(){},getComputedStyle:()=>({gap:'20px'})}};
+ const frames=new Map();let nextFrame=0,time=0;
+ const requestAnimationFrame=callback=>{frames.set(++nextFrame,callback);return nextFrame;};
+ const cancelAnimationFrame=id=>frames.delete(id);
+ const advance=()=>{time+=1000/60;const callbacks=[...frames.values()];frames.clear();callbacks.forEach(callback=>callback(time));};
+ const settle=()=>{let steps=0;while(frames.size&&steps++<120)advance();assert.equal(frames.size,0,'Scrolling settles without an endless animation');};
+ const media={matches:false,addEventListener(){}};
+ const document=Object.assign(new Node(),{body:{dataset:{}},activeElement:{tagName:'BODY'},createElement:tag=>new Node(tag),getElementById:id=>node('#'+id),querySelector:node,querySelectorAll:selector=>selector==='.product-shelf'?[shelf]:[]});
+ const window=Object.assign(new Node(),{matchMedia:()=>media,location:{search:''}});
+ return {nodes,node,shelf,document,window,frames,advance,settle,media,context:{window,document,location:window.location,URLSearchParams,Intl,Number,Promise,requestAnimationFrame,cancelAnimationFrame,setTimeout:()=>1,clearTimeout(){},getComputedStyle:()=>({gap:'20px'})}};
 }
 async function customer({page='cart',stock=3,cart={product_abc:1},signedIn=false,save}={}){
  const env=base();const items=[{...product,stock}];let persisted={...cart};
  env.document.body.dataset.page=page;env.window.location.search='?id=product_abc';
  Object.assign(env.context,{products:items,reloadProducts(){},productImage:p=>p.image,productBrand:p=>p.brand||'',findProducts:()=>items,localStorage:{getItem:()=>JSON.stringify(persisted),setItem:(key,value)=>{persisted=JSON.parse(value);}},Store:{ready:Promise.resolve(),auth:{current:()=>signedIn?{id:'customer_test'}:null},db:{store:()=>null},getCart:()=>({...persisted}),saveCart:async input=>{if(save)await save(input);persisted={...input};return {...persisted};}}});
  if(page==='home'){
+  env.nodes.set('#recommended-products',env.shelf);
   items.push({...product,id:'product_other',price:50,brand:'Acme',category:'Accessories'});
   env.context.Store.db.catalog=()=>items;env.context.Store.safeImage=v=>v;
   vm.runInNewContext(fs.readFileSync('assets/catalog.js','utf8'),env.context);env.context.products=env.window.products;
@@ -56,7 +64,9 @@ async function editor({saveProduct,saveDraft,brandEnabled=false}={}){
 async function main(){
  const home=await customer({page:'home'});
  assert.equal(home.node('#recommended-products').children.length,2);
+ await home.shelf.fire('wheel',{deltaY:100,deltaX:0});home.advance();assert(home.frames.size);
  await home.node('[data-category="Accessories"]').click();assert.equal(home.node('#recommended-products').children.length,1);
+ home.settle();assert.equal(home.shelf.scrollLeft,0,'Changing category cancels old scroll motion and starts at the first result');
  await home.node('#reset-search').fire('click');assert.equal(home.node('#recommended-products').children.length,2);
  const cardAdd=env=>descendants(env.node('#recommended-products')).find(n=>n.className==='card-add');
  const cards=await customer({page:'home',signedIn:true,cart:{}});
@@ -84,8 +94,7 @@ async function main(){
  const plus=descendants(capped.node('#cart-items')).find(n=>n.dataset.action==='plus');assert(plus.disabled,'Stock limit disables cart increase');
  const unavailable=await customer({stock:0,cart:{product_abc:2}});assert.equal(unavailable.node('#cart-count').textContent,0);assert.equal(unavailable.node('#cart-empty').hidden,false);
  const detail=await customer({page:'product',stock:2});detail.node('#product-quantity').value=99;await detail.node('#product-quantity').fire('change');assert.equal(Number(detail.node('#product-quantity').value),2);assert(detail.node('#quantity-up').disabled);
- let prevented=false;detail.shelf.scrollLeft=10;await detail.shelf.fire('wheel',{deltaY:30,deltaX:0,deltaMode:0,preventDefault(){prevented=true;}});assert(prevented);assert.equal(detail.shelf.scrollLeft,40);
- detail.shelf.scrollLeft=400;prevented=false;await detail.shelf.fire('wheel',{deltaY:30,deltaX:0,deltaMode:0,preventDefault(){prevented=true;}});assert(!prevented,'Page scrolling is released at the shelf edge');
+ await checkScrolling(detail);
  const pendingCart=deferred();let cartWrites=0;
  const cartPage=await customer({signedIn:true,save:()=>{cartWrites++;return pendingCart.promise;}});
  const cartPlus=descendants(cartPage.node('#cart-items')).find(n=>n.dataset.action==='plus');
@@ -98,5 +107,32 @@ async function main(){
  const pendingDraft=deferred();let draftWrites=0;
  const draft=await editor({saveDraft:()=>{draftWrites++;return pendingDraft.promise;}});const firstDraft=draft.node('#save-draft').fire('click');await draft.node('#save-draft').fire('click');await draft.form.fire('submit');assert.equal(draftWrites,1);pendingDraft.resolve();await firstDraft;assert(!draft.node('#save-draft').disabled);
  console.log('PASS: product card links and cart actions, stock limits, failed-save recovery, shared cart request lock, product quantities, horizontal wheel scrolling, and seller editor saves.');
+}
+async function checkScrolling(env){
+ const {shelf,frames,advance,settle}=env;
+ async function wheel(deltaY,extra={}){let prevented=false;await shelf.fire('wheel',{deltaY,deltaX:0,deltaMode:0,preventDefault(){prevented=true;},...extra});return prevented;}
+ shelf.scrollLeft=10;assert(await wheel(30));assert.equal(shelf.scrollLeft,10,'Wheel input is animated instead of jumping');
+ advance();assert(shelf.scrollLeft>10&&shelf.scrollLeft<40,'Intermediate frame eases toward target');
+ assert(await wheel(30));assert.equal(frames.size,1,'Repeated input shares one animation');settle();assert.equal(shelf.scrollLeft,70,'Wheel distances accumulate');
+ await wheel(100);advance();const beforeReverse=shelf.scrollLeft;await wheel(-30);advance();assert(shelf.scrollLeft<beforeReverse,'Reversing input reverses immediately');settle();assert.equal(shelf.scrollLeft,beforeReverse-30);
+ shelf.scrollLeft=400;assert(!await wheel(30),'Page scrolling is released at the right edge');
+ shelf.scrollLeft=0;assert(!await wheel(-30),'Page scrolling is released at the left edge');
+ shelf.scrollWidth=100;assert(!await wheel(30),'Non-overflowing shelves leave page scrolling alone');shelf.scrollWidth=500;
+ shelf.scrollLeft=100;
+ for(const extra of [{deltaX:40},{ctrlKey:true},{shiftKey:true}]){assert(!await wheel(30,extra),'Native horizontal, zoom and shifted scrolling are preserved');assert.equal(frames.size,0);}
+ await wheel(100);advance();await shelf.fire('touchstart');const interrupted=shelf.scrollLeft;settle();assert.equal(shelf.scrollLeft,interrupted,'Touch cancels pending wheel motion');
+ shelf.scrollLeft=0;await wheel(2,{deltaMode:1});settle();assert.equal(shelf.scrollLeft,32,'Line wheel units are normalized');
+ await wheel(1,{deltaMode:2});settle();assert.equal(shelf.scrollLeft,132,'Page wheel units are normalized');
+ env.media.matches=true;await wheel(30);assert.equal(shelf.scrollLeft,162);assert.equal(frames.size,0,'Reduced motion uses immediate scrolling');env.media.matches=false;
+ const card=new Node();card.className='product-card';shelf.append(card);shelf.scrollLeft=0;
+ await shelf.fire('keydown',{key:'ArrowRight'});advance();assert(shelf.scrollLeft>0&&shelf.scrollLeft<220);settle();assert.equal(shelf.scrollLeft,220,'Keys advance by card width plus gap');
+ await shelf.fire('keydown',{key:'ArrowLeft',target:card});assert.equal(frames.size,0,'Keys inside cards are left alone');
+ const button=new Node('button');button.dataset={scroll:'test-shelf',direction:'-1'};env.nodes.set('#test-shelf',shelf);
+ env.document.querySelectorAll=selector=>selector==='.product-shelf'?[shelf]:selector==='[data-scroll]'?[button]:[];
+ env.window.initializeShelves();env.window.initializeShelves();assert.equal(shelf.events.wheel.length,1);assert.equal(button.events.click.length,1);
+ await button.click();settle();assert.equal(shelf.scrollLeft,0,'Buttons use the same card-sized easing');
+ await wheel(100);await env.window.fire('resize');assert.equal(frames.size,0,'Resizing stops pending movement');
+ await wheel(100);await env.window.fire('pagehide');assert.equal(frames.size,0,'Navigating away cancels animations');
+ console.log('PASS: eased wheel, repeated and reversed input, shelf edges, native gestures, reduced motion, card-sized buttons/keys and animation cleanup.');
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});
