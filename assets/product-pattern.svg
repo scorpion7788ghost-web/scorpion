@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" fill="none" stroke="#9292e8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Sparse tech outlines drift as one seamless, decorative background tile. -->
+  <g transform="translate(42 58) rotate(-12 46 33)" opacity=".85">
+    <rect x="10" y="0" width="72" height="48" rx="5"/>
+    <path d="M17 7h58v33H17zM10 48 0 60q0 5 7 5h78q7 0 7-5L82 48M34 54h24"/>
+  </g>
+  <g transform="translate(298 32) rotate(14 22 40)" opacity=".65">
+    <rect width="44" height="80" rx="9"/><path d="M14 7h16M17 72h10"/>
+    <rect x="5" y="14" width="34" height="50" rx="3"/>
+  </g>
+  <g transform="translate(548 82) rotate(-15 36 36)" opacity=".85">
+    <path d="M5 41V32a31 31 0 0 1 62 0v9M12 34v-2a24 24 0 0 1 48 0v2"/>
+    <rect x="0" y="34" width="14" height="30" rx="6"/><rect x="58" y="34" width="14" height="30" rx="6"/>
+  </g>
+  <g transform="translate(174 235) rotate(18 24 35)" opacity=".7">
+    <rect width="48" height="70" rx="24"/><path d="M24 0v25M0 28h48"/>
+    <rect x="21" y="10" width="6" height="12" rx="3"/>
+  </g>
+  <g transform="translate(416 248) rotate(-9 52 22)" opacity=".65">
+    <rect width="104" height="44" rx="6"/>
+    <path stroke-dasharray="3 7" stroke-width="4" d="M10 10h84M10 20h84M10 30h14M80 30h14"/>
+    <path d="M30 33h42"/>
+  </g>
+  <g transform="translate(690 249) rotate(12 24 37)" opacity=".8">
+    <rect width="48" height="74" rx="9"/><circle cx="24" cy="20" r="8"/><circle cx="24" cy="50" r="15"/><circle cx="24" cy="50" r="6"/>
+  </g>
+  <g transform="translate(55 449) rotate(13 36 28)" opacity=".6">
+    <rect width="72" height="46" rx="5"/><path d="M7 7h58v32H7zM28 46v12M44 46v12M19 59h34"/>
+  </g>
+  <g transform="translate(318 449) rotate(-16 20 37)" opacity=".85">
+    <path d="M10 20V3h20v17M10 54v18h20V54"/>
+    <rect x="0" y="20" width="40" height="34" rx="10"/><path d="M20 28v10l7 5M40 31h3v10"/>
+  </g>
+  <g transform="translate(574 438) rotate(12 36 36)" opacity=".65">
+    <path d="M5 41V32a31 31 0 0 1 62 0v9M12 34v-2a24 24 0 0 1 48 0v2"/>
+    <rect x="0" y="34" width="14" height="30" rx="6"/><rect x="58" y="34" width="14" height="30" rx="6"/>
+  </g>
+</svg>

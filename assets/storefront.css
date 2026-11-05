@@ -24,16 +24,16 @@ html[data-theme="white-light"] .customer-backdrop { --bg: #fafafa; --panel: #fff
   animation: shop-glow 28s ease-in-out infinite alternate;
 }
 .customer-backdrop::after {
-  inset: -420px 0 0;
+  inset: -600px 0 0;
   opacity: var(--shop-pattern-opacity);
-  background: url("binary-pattern.svg") repeat;
-  background-size: 640px 420px;
+  background: url("product-pattern.svg") repeat;
+  background-size: 800px 600px;
   mask-image: linear-gradient(to right,#000, #0006 25%,#0004 65%,#000);
-  animation: shop-binary 70s linear infinite;
+  animation: shop-products 80s linear infinite;
 }
 html[data-theme="black-dark"] .customer-backdrop::after { filter: grayscale(1); }
 html[data-theme="white-light"] .customer-backdrop::after { filter: grayscale(1); }
-@keyframes shop-binary { from { transform: translateY(0); } to { transform: translateY(420px); } }
+@keyframes shop-products { from { transform: translateY(0); } to { transform: translateY(600px); } }
 @keyframes shop-glow { from { transform: translate3d(-2%,-1%,0); } to { transform: translate3d(2%,2%,0); } }
 .customer-backdrop .site-header { background: color-mix(in srgb,var(--bg) 96%,transparent); border-bottom: 1px solid var(--line); }
 .customer-backdrop .header-search { background: color-mix(in srgb,var(--panel) 90%,var(--bg)); border-color: var(--line); border-radius: 14px; }
