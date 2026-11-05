@@ -36,7 +36,7 @@ for folder in [ROOT,ROOT/'seller-site']:
  for page in folder.glob('*.html'):
   text=page.read_text(encoding='utf-8-sig')
   assert text.count('data-profile-host')==1,page
-  assert text.count('src="assets/theme.js"')==1,page
+  assert text.count('src="assets/theme.js?v=4"')==1,page
   assert text.index('assets/profile.js') < text.index('assets/access.js'),page
   assert 'assets/themes.css' in text and 'assets/profile.css' in text,page
   assert text.index('assets/store-config.js') < text.index('assets/supabase-store.js') < text.index('assets/store-api.js') < text.index('assets/access.js'),page
