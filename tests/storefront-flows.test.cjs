@@ -58,6 +58,24 @@ async function main(){
  assert.equal(home.node('#recommended-products').children.length,2);
  await home.node('[data-category="Accessories"]').click();assert.equal(home.node('#recommended-products').children.length,1);
  await home.node('#reset-search').fire('click');assert.equal(home.node('#recommended-products').children.length,2);
+ const cardAdd=env=>descendants(env.node('#recommended-products')).find(n=>n.className==='card-add');
+ const cards=await customer({page:'home',signedIn:true,cart:{}});
+ const firstCard=cards.node('#recommended-products').children[0];
+ assert(!descendants(firstCard.children[0]).some(n=>n.tagName==='BUTTON'),'Product links must not contain nested buttons');
+ const cardView=descendants(firstCard).find(n=>n.className==='card-view');assert.equal(cardView.href,'product.html?id=product_abc');
+ await cardAdd(cards).click();assert.equal(cards.persisted().product_abc,1);assert.equal(cards.node('#cart-count').textContent,1);
+ await cardAdd(cards).click();await cardAdd(cards).click();await cardAdd(cards).click();assert.equal(cards.persisted().product_abc,3,'Card purchases respect available stock');
+ const noStock=await customer({page:'home',stock:0,cart:{},signedIn:true});assert(cardAdd(noStock).disabled);await cardAdd(noStock).click();assert.equal(noStock.persisted().product_abc,undefined);
+ const cardFailure=await customer({page:'home',signedIn:true,cart:{},save:()=>Promise.reject(new Error('Cart save failed'))});
+ await cardAdd(cardFailure).click();assert.equal(cardFailure.node('#cart-count').textContent,0);assert.equal(cardFailure.node('#toast').textContent,'Cart save failed');assert(!cardAdd(cardFailure).disabled);
+ const pendingCard=deferred();let cardWrites=0;
+ const cardBusy=await customer({page:'home',signedIn:true,cart:{},save:()=>{cardWrites++;return pendingCard.promise;}});
+ const firstCardSave=cardAdd(cardBusy).click();await cardAdd(cardBusy).click();
+ const anotherAdd=descendants(cardBusy.node('#recommended-products')).filter(n=>n.className==='card-add')[1];await anotherAdd.click();assert.equal(cardWrites,1,'All card buttons share the cart request lock');
+ pendingCard.resolve();await firstCardSave;assert.equal(cardBusy.persisted().product_abc,1);assert(!cardAdd(cardBusy).disabled);
+ const pendingDetail=deferred();let detailWrites=0;
+ const detailBusy=await customer({page:'product',signedIn:true,cart:{},save:()=>{detailWrites++;return pendingDetail.promise;}});
+ const detailSave=detailBusy.node('#add-to-cart').click();await detailBusy.node('#add-to-cart').click();assert.equal(detailWrites,1);pendingDetail.resolve();await detailSave;
  let brandSaved;
  const branded=await editor({brandEnabled:true,saveProduct:async(id,input)=>{brandSaved=input.brand;return {id:'product_abc'};}});
  assert(!branded.node('#brand-field').hidden);branded.node('#new-brand').value=' Acme ';await branded.form.fire('submit');assert.equal(brandSaved,'Acme');
@@ -79,6 +97,6 @@ async function main(){
  const failed=await editor({saveProduct:()=>Promise.reject(new Error('Storage unavailable'))});await failed.form.fire('submit');assert.equal(failed.node('#editor-error').textContent,'Storage unavailable');assert(!failed.node('#save-product').disabled);assert(!failed.node('#new-name').disabled);
  const pendingDraft=deferred();let draftWrites=0;
  const draft=await editor({saveDraft:()=>{draftWrites++;return pendingDraft.promise;}});const firstDraft=draft.node('#save-draft').fire('click');await draft.node('#save-draft').fire('click');await draft.form.fire('submit');assert.equal(draftWrites,1);pendingDraft.resolve();await firstDraft;assert(!draft.node('#save-draft').disabled);
- console.log('PASS: stock-aware carts and product quantities, out-of-stock removal, horizontal wheel scrolling and edge release, serialized cart saves, duplicate product/draft prevention, and editor recovery after failed saves.');
+ console.log('PASS: product card links and cart actions, stock limits, failed-save recovery, shared cart request lock, product quantities, horizontal wheel scrolling, and seller editor saves.');
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

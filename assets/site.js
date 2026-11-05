@@ -45,8 +45,27 @@ function createCard(product,isNew=false){
   const tag=document.createElement('span');tag.className='card-tag';tag.textContent=isNew?'JUST ADDED':product.category.toUpperCase();
   const arrow=document.createElement('span');arrow.className='card-arrow';arrow.textContent='↗';arrow.setAttribute('aria-hidden','true');art.append(image,tag,arrow);
   const meta=document.createElement('div');meta.className='product-meta';const category=document.createElement('span');category.className='product-category';category.textContent=product.category;const sellerLabel=document.createElement('span');sellerLabel.className='seller-label';sellerLabel.textContent=Store.db.store(product.sellerId)?.profile.name||'Seller product';meta.append(category,sellerLabel);
-  const titleLine=document.createElement('div');titleLine.className='product-title-line';const title=document.createElement('h3');title.textContent=product.name;const price=document.createElement('span');price.className='product-price';price.textContent=money(product.price);titleLine.append(title,price);
-  const summary=document.createElement('p');summary.className='product-summary';summary.textContent=product.summary;button.append(art,meta,titleLine,summary);li.append(button);return li;
+  const titleLine=element('div','product-title-line');titleLine.append(element('h3','',product.name));
+  const summary=element('p','product-summary',product.summary);
+  button.append(art,meta,titleLine,summary);
+  const facts=element('dl','card-facts');
+  for(const [label,value] of [['Brand',productBrand(product)||'Not specified'],['Availability',stockLimit(product)>0?'In stock':'Out of stock']]){
+    const fact=element('div');fact.append(element('dt','',label),element('dd','',value));facts.append(fact);
+  }
+  const actions=element('div','card-actions');
+  const price=element('strong','product-price',money(product.price));
+  const view=element('a','card-view','View product');view.href=button.href;view.setAttribute('aria-label',`View ${product.name}`);
+  const add=element('button','card-add','Add to cart');add.type='button';add.disabled=stockLimit(product)===0;
+  add.setAttribute('aria-label',`Add ${product.name} to cart`);if(add.disabled)add.textContent='Out of stock';
+  add.addEventListener('click',async()=>{
+    if(cartBusy||!stockLimit(product))return;
+    const before=cart[product.id]||0;
+    if(before>=stockLimit(product)){toast('The available stock is already in your cart.');return;}
+    cartBusy=true;add.disabled=true;add.textContent='Adding…';
+    try{cart[product.id]=before+1;if(await saveCart())toast(`${product.name} added to your cart.`);}
+    finally{cartBusy=false;add.disabled=stockLimit(product)===0;add.textContent=add.disabled?'Out of stock':'Add to cart';}
+  });
+  actions.append(price,view,add);li.append(button,facts,actions);return li;
 }
 
 function renderRecommendations(){
@@ -89,7 +108,7 @@ function initializeProduct(){
   $('#quantity-down').addEventListener('click',()=>{quantity.value=normalizeQuantity()-1;normalizeQuantity();});
   $('#quantity-up').addEventListener('click',()=>{quantity.value=normalizeQuantity()+1;normalizeQuantity();});
   normalizeQuantity();
-  $('#add-to-cart').addEventListener('click',async()=>{if(product.stock===0)return;const button=$('#add-to-cart');button.disabled=true;try{const count=normalizeQuantity();const before=cart[product.id]||0;cart[product.id]=Math.min(99,product.stock,before+count);if(await saveCart())toast(cart[product.id]===before?'The available stock is already in your cart.':`${cart[product.id]-before} x ${product.name} added to your cart.`);}finally{button.disabled=false;}});
+  $('#add-to-cart').addEventListener('click',async()=>{if(cartBusy||product.stock===0)return;cartBusy=true;const button=$('#add-to-cart');button.disabled=true;try{const count=normalizeQuantity();const before=cart[product.id]||0;cart[product.id]=Math.min(99,product.stock,before+count);if(await saveCart())toast(cart[product.id]===before?'The available stock is already in your cart.':`${cart[product.id]-before} x ${product.name} added to your cart.`);}finally{cartBusy=false;button.disabled=false;}});
   const related=products.filter(item=>item.id!==id).sort((a,b)=>Number(b.category===product.category)-Number(a.category===product.category));
   $('#related-products').replaceChildren(...related.map(item=>createCard(item)));
   $('#related-section').hidden=false;
