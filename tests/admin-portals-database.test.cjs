@@ -56,7 +56,18 @@ async function main(){
   assert.deepEqual((await db.query('select to_jsonb(p) as p from public.lk_profiles p where auth_id=$1',[owner])).rows[0].p,originalOwner,'Owner identity is unchanged');
   await assert.rejects(rpc(owner,"public.lk_update_account('{\"name\":\"Changed\",\"email\":\"\"}')"));
   await db.exec('set role anon');await assert.rejects(db.query('select public.lk_open_seller_shop()'));await db.exec('reset role');
-  console.log('PASS: Owner/Admin multi-portal operations, own-store isolation, pending/ordinary role denial, exclusive Owner promotion, Owner immutability, immediate revocation, and repeatable migration.');
+  const permissionsBefore=(await db.query("select pg_get_functiondef('public.lk_catalog_owner_is_approved(uuid)'::regprocedure) as definition")).rows[0].definition;
+  const moreProducts=fs.readFileSync('supabase/owner-more-products.sql','utf8');await db.exec(moreProducts);
+  const samples=(await db.query("select * from public.lk_products where data->>'sampleCollection'='owner-tech-v2'")).rows;
+  assert.equal(samples.length,3);assert(samples.every(p=>p.owner_id===owner&&p.data.image.startsWith('data:image/jpeg;base64,')&&p.data.isNew));
+  await db.query("update public.lk_products set data=data||'{\"price\":123.45,\"priceCents\":12345,\"stock\":2}'::jsonb where id=$1",[samples[0].id]);
+  await db.exec(moreProducts);
+  assert.equal((await db.query("select count(*)::int as n from public.lk_products where data->>'sampleCollection'='owner-tech-v2'")).rows[0].n,3,'Repeated imports never duplicate listings');
+  assert.equal((await db.query('select data from public.lk_products where id=$1',[samples[0].id])).rows[0].data.price,123.45,'Import preserves edited prices and inventory');
+  assert.equal((await db.query("select pg_get_functiondef('public.lk_catalog_owner_is_approved(uuid)'::regprocedure) as definition")).rows[0].definition,permissionsBefore,'Sample import never replaces Admin catalog permissions');
+  assert.deepEqual((await db.query('select to_jsonb(p) as p from public.lk_profiles p where auth_id=$1',[owner])).rows[0].p,originalOwner);
+  assert.equal((await as(buyer,"select * from public.lk_products where data->>'sampleCollection'='owner-tech-v2'")).rows.length,3);
+  console.log('PASS: Owner/Admin access and isolation, exclusive Owner promotion, revocation, Owner protection, plus three image-backed Owner products with repeatable imports preserving permissions and edited products.');
  }finally{await db.close();}
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

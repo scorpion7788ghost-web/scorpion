@@ -1,0 +1,38 @@
+[
+  {
+    "key": "laptop",
+    "name": "Everyday Creator Laptop (Sample)",
+    "price": 699.99,
+    "stock": 8,
+    "category": "Tech",
+    "summary": "Sample listing: a silver laptop for your work and creative setup.",
+    "description": "A sample laptop listing for exploring the tech collection. The photo is illustrative; the name, price, and stock are demonstration values, not an offer for the pictured brand or model. Hardware specifications are not asserted.",
+    "color": "#d5dfeb",
+    "photographer": "Chris Ried",
+    "source": "https://unsplash.com/photos/silver-laptop-computer-on-white-surface-LfG7RwMM6g8"
+  },
+  {
+    "key": "smartwatch",
+    "name": "Everyday Smartwatch (Sample)",
+    "price": 89.99,
+    "stock": 20,
+    "category": "Accessories",
+    "summary": "Sample listing: a clean watch design with a light-colored band.",
+    "description": "A sample smartwatch listing for browsing wearable accessories. The photo is illustrative; the name, price, and stock are demonstration values, not an offer for the pictured brand or model. Compatibility and health-tracking features are not asserted.",
+    "color": "#d7e2da",
+    "photographer": "Jozsef Hocza",
+    "source": "https://unsplash.com/photos/white-and-black-digital-watch-h1MnFsRI-_I"
+  },
+  {
+    "key": "camera",
+    "name": "Creator Digital Camera (Sample)",
+    "price": 449.99,
+    "stock": 6,
+    "category": "Tech",
+    "summary": "Sample listing: a classic black camera for a creative collection.",
+    "description": "A sample digital camera listing with an illustrative product photograph. The name, price, and stock are demonstration values, not an offer for the pictured brand or model. Sensor, lens, and recording specifications are not asserted.",
+    "color": "#ded8e9",
+    "photographer": "Fujiphilm",
+    "source": "https://unsplash.com/photos/a-camera-in-the-dark-on-a-black-background-GEWP1mOeXvo"
+  }
+]

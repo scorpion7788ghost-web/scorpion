@@ -5,6 +5,11 @@
  const base=window.STORE_CONFIG?.apiBase||'/api';
  let failure='';
  async function request(path,method='GET',data){
+  const foreground=path==='/bootstrap'||method!=='GET'||/^\/(admin|staff)\/(users|directory|sellers)/.test(path);
+  const finishLoading=foreground?window.StoreLoading?.begin():null;
+  try{return await performRequest(path,method,data);}finally{finishLoading?.();}
+ }
+ async function performRequest(path,method='GET',data){
   if(window.StoreCloud?.enabled)return window.StoreCloud.request(path,method,data);
   const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),60000);
   try{
