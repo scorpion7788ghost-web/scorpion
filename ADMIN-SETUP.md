@@ -46,6 +46,10 @@ For database checks, [supabase/verify-access.sql](supabase/verify-access.sql) ve
 
 ## Deployment and verification boundaries
 
+For the extended ten-section dashboard, use [Admin Console setup](ADMIN-CONSOLE-SETUP.md)
+after completing the existing account/Owner upgrades. It adds the protected
+management RPCs without replacing the deployed account service.
+
 GitHub Pages serves the HTML/CSS/JavaScript shell. Supabase controls access to account and catalog records. Hiding a page or removing a registration button alone does not secure the database: **the database upgrade and Edge Function deployment above are required**.
 
 Local automated checks exercise page access, administrator authorization, spoofed privileges, account API calls, protected deletion, input limits, and existing cart/seller behavior. They do not replace a live check with your own accounts. The old PHP development backend now blocks public registration and guest catalog access; administrator provisioning uses the hosted Supabase panel.

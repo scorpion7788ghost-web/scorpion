@@ -26,6 +26,7 @@ async function main(){
   if(url.endsWith('/auth/v1/settings'))return {body:{mailer_autoconfirm:true,external:{email:true},disable_signup:false}};
   if(url.endsWith('/rpc/lk_registration_status'))return {body:{version:1,enabled:true}};
   if(url.endsWith('/rpc/lk_access_status'))return {body:{isAdmin:false,isOwner:false,portalAccessVersion:1}};
+  if(url.endsWith('/rpc/lk_console_categories'))return {body:['Tech','Home','Accessories','Lifestyle']};
   if(url.includes('/auth/v1/signup'))return {body:{access_token:'seller-access',refresh_token:'seller-refresh',expires_in:3600}};
   if(url.includes('/auth/v1/token?grant_type=refresh_token'))return {body:{access_token:'renewed-access',refresh_token:'renewed-refresh',expires_in:3600}};
   if(url.includes('/auth/v1/token?grant_type=password'))return {body:{access_token:'verified-access',refresh_token:'verified-refresh',expires_in:3600}};
@@ -43,6 +44,7 @@ async function main(){
  const login=JSON.parse(seller.calls.find(call=>call.url.includes('grant_type=password')).options.body);assert.equal(login.email,'real_seller@seller.lk-store.invalid');assert(!seller.calls.some(call=>call.url.endsWith('/signup')));
  assert(![...storage.values()].join('').includes('ValidPassword123!'));assert(![...storage.values()].join('').includes('private@example.invalid'));
  const state=await seller.cloud.request('/bootstrap');assert.equal(state.sellerStore.profile.id,'seller_owned');assert.equal(state.products.length,0);
+ assert.equal(state.categories[0],'Tech');
  await seller.cloud.request('/seller/products/product_abc','PUT',{name:'Saved'});
  assert.equal(JSON.parse(writes[0].options.body).product_id,'product_abc');assert.equal(writes[0].options.headers.Authorization,'Bearer verified-access');
  await seller.cloud.request('/seller/draft?key=new','DELETE',{});assert.equal(JSON.parse(writes[1].options.body).input,null);
@@ -63,6 +65,10 @@ async function main(){
  await assert.rejects(profileFailure.cloud.request('/me','PATCH',{name:'Updated',email:'',currentPassword:'ValidPassword123!',password:'ChangedPassword123!'}),/Your password changed, but your profile details could not be saved/);
  const failed=app({handler:()=>{throw new TypeError('network')}});await assert.rejects(failed.cloud.request('/auth/login','POST',{role:'customer',username:'user',password:'unused'}),/Cannot reach online storage/);
  const buyerStorage=new Map([['lk-auth-v2:https://isolated-check.supabase.co:customer',JSON.stringify({access_token:'buyer-access',refresh_token:'buyer-refresh',expires_at:Date.now()/1000+3600})]]);
+ const consoleApp=app({storage:buyerStorage});await consoleApp.cloud.request('/admin/console','POST',{section:'products',filters:{page:2}});await consoleApp.cloud.request('/admin/command','POST',{action:'ticket-status',input:{id:'test',status:'resolved'}});await consoleApp.cloud.request('/notifications');
+ assert.deepEqual(consoleApp.calls.map(c=>c.url.split('/').at(-1)),['lk_admin_console','lk_admin_command','lk_notifications']);assert(consoleApp.calls.every(c=>c.options.headers.Authorization==='Bearer buyer-access'));assert.equal(JSON.parse(consoleApp.calls[0].options.body).filters.page,2);
+ const inactive=app({role:'seller',storage:new Map(storage),handler:(url,options)=>url.includes('/lk_profiles')?{body:[{account_active:false}]}:server(url,options)});await assert.rejects(inactive.cloud.request('/bootstrap'),/account is inactive/);
+ const beforeUpgrade=app({role:'seller',storage:new Map(storage),handler:(url,options)=>url.endsWith('/rpc/lk_console_categories')?{status:404,body:{code:'PGRST202'}}:server(url,options)});assert.equal((await beforeUpgrade.cloud.request('/bootstrap')).sellerStore.profile.id,'seller_owned','Missing new categories migration must not break existing sellers');
  const adminPreflight=app({storage:buyerStorage,handler:()=>{throw new TypeError('Failed to fetch');}});
  await assert.rejects(adminPreflight.cloud.request('/admin/users'),error=>error.code==='ADMIN_SERVICE_UNAVAILABLE'&&error.message.includes('function endpoint')&&!error.message.includes('internet connection'),'A failed admin preflight must identify the admin service, not blame the internet connection');
  assert.equal(adminPreflight.calls[0].url,'https://isolated-check.supabase.co/functions/v1/store-admin','The default function remains compatible with existing deployments');

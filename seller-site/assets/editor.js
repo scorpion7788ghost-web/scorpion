@@ -16,6 +16,9 @@
   let requestBusy = false;
   let lockedControls = [];
   const fields = {name:$('#new-name'),category:$('#new-category'),price:$('#new-price'),summary:$('#new-summary'),description:$('#new-description'),sku:$('#new-sku'),stock:$('#new-stock'),status:$('#new-status'),brand:$('#new-brand')};
+  const selectedCategory=fields.category.value;
+  fields.category.replaceChildren(...productCategories.map(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;return option;}));
+  fields.category.value=productCategories.includes(selectedCategory)?selectedCategory:(productCategories[0]||'');
   let brandEnabled=false;
   try{brandEnabled=(await Store.request('/catalog/fields')).brand===true;}catch{}
   fields.brand.disabled=!brandEnabled;$('#brand-field').hidden=!brandEnabled;

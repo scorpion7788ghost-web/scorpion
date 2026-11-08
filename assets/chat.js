@@ -34,6 +34,14 @@
   }catch(error){if(sequence===threadSequence)message('chat-error',error.message);}
   finally{if(sequence===threadSequence){get('chat-refresh').disabled=false;get('chat-older').disabled=false;}}
  }
+ function openConversation(person){
+  if(sending)return;target=person.auth_id;threadSequence++;history=new Map();older=false;retry=null;
+  get('chat-message').value='';get('chat-messages').replaceChildren();get('chat-panel').hidden=false;
+  get('admin-inbox').hidden=false;get('chat-unselected').hidden=true;
+  get('chat-title').textContent='Chat with '+person.name;get('chat-description').textContent='Private conversation with @'+person.username;
+  loadThread();loadInbox();get('chat-panel').scrollIntoView?.({behavior:'auto',block:'start'});
+ }
+ if(admin)window.StoreChat={open:openConversation};
  async function loadInbox(){
   const sequence=++inboxSequence;get('inbox-refresh').disabled=true;
   try{
@@ -41,7 +49,7 @@
    get('inbox-threads').replaceChildren(...result.conversations.map(person=>{
     const button=node('button','','inbox-thread');button.type='button';button.setAttribute('aria-current',String(person.auth_id===target));button.disabled=sending;
     button.append(node('strong',person.name+' · @'+person.username),node('p',person.preview),node('small',(person.author_kind==='admin'?'Admin replied · ':'Customer message · ')+new Date(person.created_at).toLocaleString()));
-    button.addEventListener('click',()=>{if(sending)return;target=person.auth_id;threadSequence++;history=new Map();older=false;retry=null;get('chat-message').value='';get('chat-messages').replaceChildren();get('chat-panel').hidden=false;get('chat-unselected').hidden=true;get('chat-title').textContent='Chat with '+person.name;get('chat-description').textContent='Private conversation with @'+person.username;loadThread();loadInbox();});return button;
+    button.addEventListener('click',()=>openConversation(person));return button;
    }));
    get('inbox-status').textContent=result.total?`${(page-1)*25+1}–${Math.min(page*25,result.total)} of ${result.total} conversations`:'No customer messages yet.';get('inbox-previous').disabled=page===1;get('inbox-next').disabled=page*25>=result.total;message('inbox-error','');
   }catch(error){if(sequence!==inboxSequence)return;message('inbox-error',error.message);get('inbox-previous').disabled=get('inbox-next').disabled=true;}

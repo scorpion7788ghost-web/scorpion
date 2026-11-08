@@ -2,7 +2,7 @@ window.sellerReady=(async()=>{
 await Store.ready;
 if(Store.accessReady&&!(await Store.accessReady))return;
 'use strict';
-const productCategories=['Tech','Home','Accessories','Lifestyle'];
+const productCategories=Store.state.categories||['Tech','Home','Accessories','Lifestyle'];
 const $=selector=>document.querySelector(selector);
 const $$=selector=>[...document.querySelectorAll(selector)];
 const money=value=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(value);

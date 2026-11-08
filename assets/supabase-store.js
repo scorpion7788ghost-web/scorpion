@@ -35,6 +35,7 @@
     let message=result.msg||result.message||result.error_description||result.error||'The hosted request could not be completed.';
     if(result.code==='42P01'||result.code==='PGRST202'||result.code==='PGRST205')message='Run the Supabase schema setup before using the store.';
     if(['/rest/v1/rpc/lk_directory','/rest/v1/rpc/lk_admin_update_account','/rest/v1/rpc/lk_chat_messages','/rest/v1/rpc/lk_chat_send','/rest/v1/rpc/lk_chat_inbox'].includes(path)&&result.code==='PGRST202')message='The new community tools need activation. The store owner must run community-tools.sql in Supabase.';
+    if(['/rest/v1/rpc/lk_admin_console','/rest/v1/rpc/lk_admin_command','/rest/v1/rpc/lk_notifications'].includes(path)&&result.code==='PGRST202')message='The Admin Console database upgrade is not activated. Run supabase/admin-console.sql in Supabase SQL Editor.';
     if(path==='/rest/v1/rpc/lk_access_status'&&result.code==='PGRST202')message='Owner protection needs activation. Run owner-access.sql in Supabase.';
     if(path==='/rest/v1/rpc/lk_is_admin'&&result.code==='PGRST202')message='Administrator setup is incomplete. Apply the admin-access.sql upgrade in Supabase.';
     if(['/rest/v1/rpc/lk_registration_status','/rest/v1/rpc/lk_staff_status','/rest/v1/rpc/lk_seller_reviews','/rest/v1/rpc/lk_approve_seller'].includes(path)&&result.code==='PGRST202')message='Registration and seller verification are not ready yet. The store owner needs to apply worker-verification.sql in Supabase.';
@@ -75,6 +76,7 @@
   try{await wire('/auth/v1/user',{token});}catch(error){if(error.status===401||error.status===403){remember(null);return null;}throw error;}
   const mine=await rows('lk_profiles','select=*');
   const profile=mine[0];if(!profile)throw new Error('This account has no store profile. Run the Supabase schema setup before registering accounts.');
+  if(profile.account_active===false){remember(null);throw new Error('Your account is inactive. Please contact support.');}
   const permissions=await rpc('lk_access_status',{});
   const isAdmin=permissions.isAdmin===true&&profile.verification_status==='approved';
   if(profile.role!==role&&!(isAdmin&&['customer','seller'].includes(role))){remember(null);throw new Error('Sign in through the correct customer or seller website.');}
@@ -93,6 +95,7 @@
   }
   const [shops,publicProducts]=await Promise.all([rows('lk_shops','select=id,profile'),rows('lk_products','select=data&status=eq.active&order=created_at.desc')]);
   const products=publicProducts.map(row=>row.data);
+  let categories;try{categories=await rpc('lk_console_categories',{});}catch(error){if(error.code!=='PGRST202')throw error;}
   const stores=shops.map(row=>({profile:row.profile,products:products.filter(p=>p.sellerId===row.id)}));
   let sellerStore=null,cart={};
   if(role==='seller'){
@@ -108,11 +111,14 @@
     if(product&&Number.isInteger(quantity)&&quantity>0&&product.stock>0)cart[id]=Math.min(99,quantity,product.stock);
    }
   }
-  return {portal:role,user,stores,products,sellerStore,cart,orders:[],csrf:'',customerUrl:config.customerUrl,sellerUrl:config.sellerUrl};
+  return {portal:role,user,stores,products,sellerStore,cart,categories,orders:[],csrf:'',customerUrl:config.customerUrl,sellerUrl:config.sellerUrl};
  }
  async function request(path,method='GET',data={}){
   configured();
   if(path==='/bootstrap'&&method==='GET')return bootstrap();
+  if(path==='/admin/console'&&method==='POST')return rpc('lk_admin_console',{section:data.section,filters:data.filters||{}});
+  if(path==='/admin/command'&&method==='POST')return rpc('lk_admin_command',{action:data.action,input:data.input});
+  if(path==='/notifications'&&method==='GET')return rpc('lk_notifications',{});
   if(path==='/admin/status'||path==='/admin/permissions')return (await access())?rpc('lk_access_status',{}):{isAdmin:false,isOwner:false};
   if(path==='/staff/status')return (await access())?rpc('lk_staff_status',{}):{isAdmin:false,isWorker:false};
   if((path.startsWith('/staff/directory?')||path.startsWith('/admin/directory?'))&&method==='GET'){const p=new URLSearchParams(path.split('?')[1]);return rpc('lk_directory',{page_number:Number(p.get('page')||1),role_filter:p.get('role')||'all',username_search:p.get('search')||''});}

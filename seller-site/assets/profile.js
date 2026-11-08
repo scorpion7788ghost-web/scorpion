@@ -35,12 +35,20 @@
  function sync(){for(const button of choices.children)button.setAttribute('aria-pressed',String(button.dataset.themeChoice===StoreTheme.current()));}
  window.addEventListener('lk-theme-change',sync);sync();
  function link(label,url){const element=document.createElement('a');element.textContent=label;element.href=url;return element;}
+ async function openNotifications(){
+  close();let dialog=get('profile-notifications');
+  if(!dialog){dialog=document.createElement('dialog');dialog.id='profile-notifications';dialog.className='profile-notifications';dialog.setAttribute('aria-label','Your notifications');document.body.append(dialog);}
+  dialog.replaceChildren();const heading=document.createElement('h2');heading.textContent='Your notifications';const dismiss=document.createElement('button');dismiss.type='button';dismiss.textContent='Close';dismiss.addEventListener('click',()=>dialog.close());const content=document.createElement('div');content.textContent='Loading notifications…';content.setAttribute('role','status');dialog.append(heading,dismiss,content);dialog.showModal();
+  try{const notices=await Store.request('/notifications');content.replaceChildren();if(!notices.length)content.textContent='No announcements yet.';for(const item of notices){const article=document.createElement('article'),title=document.createElement('h3'),body=document.createElement('p'),time=document.createElement('small');title.textContent=item.title;body.textContent=item.body;time.textContent=new Date(item.created_at).toLocaleString();article.append(title,body,time);content.append(article);}}
+  catch(error){content.textContent=error.code==='PGRST202'?'Notifications are not available yet.':error.message;}
+ }
  function mount(user,status={isAdmin:user?.isAdmin===true,isOwner:user?.isOwner===true}){
   get('profile-caption').textContent=user?(status.isOwner?'OWNER':'SIGNED IN AS'):'WELCOME';get('profile-name').textContent=user?.name||'Make yourself at home';
   const links=get('profile-links');links.replaceChildren();
   if(user){
    links.append(link('My Account',role==='seller'?seller('account.html'):buyer(role==='worker'?'worker-account.html':'account.html')));
    for(const [label,url] of destinations(user,status.isAdmin===true))links.append(link(label,url));
+   if(window.StoreCloud?.enabled){const notifications=document.createElement('button');notifications.type='button';notifications.textContent='Notifications';notifications.addEventListener('click',openNotifications);links.append(notifications);}
   }else links.append(link('Sign In',role==='seller'?seller('login.html'):buyer(role==='worker'?'worker-login.html':'login.html')));
   get('profile-signout').hidden=!user;
  }

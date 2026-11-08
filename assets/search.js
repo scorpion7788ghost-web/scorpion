@@ -57,7 +57,9 @@ window.searchReady=(async()=>{
  document.title=query?`Search: ${query} | LK Tech Store`:'Search Products | LK Tech Store';
  $('#results-description').textContent='Refine your results by category, brand, and price.';
  for(const [value,label] of catalogBrands()){const option=node('option','',label);option.value=value;brand.append(option);}
- category.value=['Tech','Home','Accessories','Lifestyle'].includes(params.get('category'))?params.get('category'):'All';
+ const categories=[...new Set(['Tech','Home','Accessories','Lifestyle',...products.map(product=>product.category).filter(Boolean)])];
+ category.replaceChildren(...['All',...categories].map(value=>{const option=node('option','',value==='All'?'All categories':value);option.value=value;return option;}));
+ category.value=categories.includes(params.get('category'))?params.get('category'):'All';
  const requestedBrand=params.get('brand')||'';
  if(requestedBrand&&!catalogBrands().some(([key])=>key===requestedBrand)){const option=node('option','','Brand no longer available');option.value=requestedBrand;brand.append(option);}
  brand.value=requestedBrand;min.value=params.get('min')||'';max.value=params.get('max')||'';
