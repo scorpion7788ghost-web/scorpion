@@ -1,5 +1,7 @@
 # LK Tech Store
 
+The redesigned Buyer marketplace includes live search, a real-product hero carousel, category shortcuts, quick view, account wishlists and order history. See [Buyer experience setup](BUYER-EXPERIENCE.md) for the additive database upgrade, approximate LKR display pricing and verification steps.
+
 **Current access model:** Buyers and sellers can register themselves. New sellers need approval from a Worker or Administrator before they can use the Seller Site. Only Administrators can create Workers. Follow [WORKER-SETUP.md](WORKER-SETUP.md) to apply this upgrade to the existing Supabase project; both stores still require sign-in.
 
 The customer store and **Seller Site** are separate websites with separate customer/seller login access. There are no demo accounts or sample products.

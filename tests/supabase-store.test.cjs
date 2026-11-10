@@ -53,6 +53,17 @@ async function main(){
  const brandReady=app({role:'seller',storage,handler:()=>({body:{brand:true,version:1}})});
  assert.equal((await brandReady.cloud.request('/catalog/fields')).brand,true);
  assert(brandReady.calls[0].url.endsWith('/rpc/lk_product_fields_status'));
+ const buyerRoutes=app({role:'seller',storage,handler:()=>({body:[]})});
+ await buyerRoutes.cloud.request('/wishlist');
+ await buyerRoutes.cloud.request('/wishlist','PUT',{productId:'product_abc',saved:true});
+ await buyerRoutes.cloud.request('/wishlist','PUT',{productId:'product_abc',saved:false});
+ await buyerRoutes.cloud.request('/my/orders?page=2');
+ assert(buyerRoutes.calls[0].url.endsWith('/rpc/lk_buyer_wishlist'));
+ assert.deepEqual(JSON.parse(buyerRoutes.calls[1].options.body),{operation:'add',item_id:'product_abc'});
+ assert.deepEqual(JSON.parse(buyerRoutes.calls[2].options.body),{operation:'remove',item_id:'product_abc'});
+ assert(buyerRoutes.calls[3].url.endsWith('/rpc/lk_my_orders'));
+ assert.deepEqual(JSON.parse(buyerRoutes.calls[3].options.body),{page_number:2});
+ assert(buyerRoutes.calls.every(call=>call.options.headers.Authorization==='Bearer verified-access'));
  const brandMissing=app({role:'seller',storage,handler:()=>({status:404,body:{code:'PGRST202',message:'Function not found'}})});
  assert.equal((await brandMissing.cloud.request('/catalog/fields')).brand,false);
  const brandFailure=app({role:'seller',storage,handler:()=>({status:503,body:{message:'Storage unavailable'}})});

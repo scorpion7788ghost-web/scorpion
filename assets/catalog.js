@@ -19,9 +19,9 @@ function catalogPriceRange(minimum='',maximum=''){
 function findProducts(query,category='All',filters={}){
  const terms=catalogText(query).split(/\s+/).filter(Boolean);
  return products.filter(product=>{
-  const price=Math.round(Number(product.price)*100);
+  const price=Math.round(Number(product.price)*(filters.currencyRate||1)*100);
   const text=catalogText([product.name,product.category,product.summary,product.description,productBrand(product)].join(' '));
-  return (category==='All'||product.category===category)&&(!filters.brand||productBrandKey(product)===filters.brand)
+  return (category==='All'||product.category===category||Boolean(window.Shop?.matchesCollection(product,category)))&&(!filters.brand||productBrandKey(product)===filters.brand)
    &&(filters.min==null||(Number.isFinite(price)&&price>=filters.min))
    &&(filters.max==null||(Number.isFinite(price)&&price<=filters.max))&&terms.every(term=>text.includes(term));
  });

@@ -127,6 +127,9 @@
   if(path==='/admin/console'&&method==='POST')return rpc('lk_admin_console',{section:data.section,filters:data.filters||{}});
   if(path==='/admin/command'&&method==='POST')return rpc('lk_admin_command',{action:data.action,input:data.input});
   if(path==='/notifications'&&method==='GET')return rpc('lk_notifications',{});
+  if(path==='/wishlist'&&method==='GET')return rpc('lk_buyer_wishlist',{operation:'list'});
+  if(path==='/wishlist'&&method==='PUT')return rpc('lk_buyer_wishlist',{operation:data.saved?'add':'remove',item_id:data.productId});
+  if(path.startsWith('/my/orders?')&&method==='GET')return rpc('lk_my_orders',{page_number:Number(new URLSearchParams(path.split('?')[1]).get('page')||1)});
   if(path==='/admin/status'||path==='/admin/permissions')return (await access())?rpc('lk_access_status',{}):{isAdmin:false,isOwner:false};
   if(path==='/staff/status')return (await access())?rpc('lk_staff_status',{}):{isAdmin:false,isWorker:false};
   if((path.startsWith('/staff/directory?')||path.startsWith('/admin/directory?'))&&method==='GET'){const p=new URLSearchParams(path.split('?')[1]);return rpc('lk_directory',{page_number:Number(p.get('page')||1),role_filter:p.get('role')||'all',username_search:p.get('search')||''});}

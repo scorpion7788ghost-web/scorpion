@@ -47,6 +47,7 @@
   const links=get('profile-links');links.replaceChildren();
   if(user){
    links.append(link('My Account',role==='seller'?seller('account.html'):buyer(role==='worker'?'worker-account.html':'account.html')));
+   if(role==='customer'&&access!=='admin'){links.append(link('My Orders',buyer('orders.html')),link('Wishlist',buyer('wishlist.html')));}
    for(const [label,url] of destinations(user,status.isAdmin===true))links.append(link(label,url));
    if(window.StoreCloud?.enabled){const notifications=document.createElement('button');notifications.type='button';notifications.textContent='Notifications';notifications.addEventListener('click',openNotifications);links.append(notifications);}
   }else links.append(link('Sign In',role==='seller'?seller('login.html'):buyer(role==='worker'?'worker-login.html':'login.html')));
@@ -57,5 +58,5 @@
   try{await Store.auth.signOut();location.replace(role==='worker'?buyer('worker-login.html'):role==='seller'?seller('login.html'):buyer(access==='admin'?'admin-login.html':'login.html'));}
   catch(error){button.disabled=false;get('profile-error').textContent=error.message;get('profile-error').hidden=false;}
  });
- window.StoreProfile={mount};mount(null);
+ window.StoreProfile={mount,openNotifications};mount(null);
 })();

@@ -12,7 +12,7 @@ window.searchReady=(async()=>{
  const isResults=document.body.dataset.page==='search';
  if(isResults)input.value=query;
  let options=[],active=-1;
- const money=value=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(value);
+ const money=value=>window.StoreMoney?.format(value)||new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(value);
  function node(tag,className,text){const result=document.createElement(tag);if(className)result.className=className;if(text!==undefined)result.textContent=text;return result;}
  function resultUrl(text,productId){const target=new URLSearchParams();if(text.trim())target.set('q',text.trim().slice(0,200));if(productId)target.set('product',productId);return 'search.html'+(target.size?'?'+target.toString():'');}
  function closeSuggestions(){panel.hidden=true;input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');active=-1;options.forEach(option=>option.setAttribute('aria-selected','false'));}
@@ -53,22 +53,26 @@ window.searchReady=(async()=>{
  if(!isResults)return;
  const category=$('#filter-category'),brand=$('#filter-brand'),min=$('#price-min'),max=$('#price-max');
  const selectedProduct=params.get('product')||'';
- $('#results-title').textContent=query?`Results for “${query}”`:'All products';
+ let priceCurrency=params.get('currency')||window.StoreMoney?.code||'USD';
+ const deals=params.get('deals')==='1',collection=params.get('collection')||'';
+ $('#results-title').textContent=deals?'Discover current deals':query?`Results for “${query}”`:collection||'All products';
  document.title=query?`Search: ${query} | LK Tech Store`:'Search Products | LK Tech Store';
  $('#results-description').textContent='Refine your results by category, brand, and price.';
  for(const [value,label] of catalogBrands()){const option=node('option','',label);option.value=value;brand.append(option);}
- const categories=[...new Set(['Tech','Home','Accessories','Lifestyle',...products.map(product=>product.category).filter(Boolean)])];
+ const categories=[...new Set([...(window.Shop?.collections||[]).filter(c=>c!=='All'),'Tech','Home','Accessories','Lifestyle',...products.map(product=>product.category).filter(Boolean)])];
  category.replaceChildren(...['All',...categories].map(value=>{const option=node('option','',value==='All'?'All categories':value);option.value=value;return option;}));
- category.value=categories.includes(params.get('category'))?params.get('category'):'All';
+ category.value=categories.includes(params.get('category')||collection)?(params.get('category')||collection):'All';
  const requestedBrand=params.get('brand')||'';
  if(requestedBrand&&!catalogBrands().some(([key])=>key===requestedBrand)){const option=node('option','','Brand no longer available');option.value=requestedBrand;brand.append(option);}
  brand.value=requestedBrand;min.value=params.get('min')||'';max.value=params.get('max')||'';
  function render(updateUrl=false){
   const range=catalogPriceRange(min.value,max.value);
+  if((min.value||max.value)&&priceCurrency!==(window.StoreMoney?.code||'USD'))range.error='The currency for these price filters is unavailable. Clear the filters and try again.';
   if([min,max].some(field=>field.validity.badInput))range.error='Enter a valid number for the price.';
   [min,max].forEach(field=>field.setAttribute('aria-invalid',String(Boolean(range.error))));
   $('#filter-error').textContent=range.error;$('#filter-error').hidden=!range.error;
-  let matches=range.error?[]:findProducts(query,category.value,{...range,brand:brand.value});
+  let matches=range.error?[]:findProducts(query,category.value,{...range,brand:brand.value,currencyRate:window.StoreMoney?.rate||1});
+  if(deals)matches=matches.filter(product=>window.Shop?.offer(product));
   if(selectedProduct)matches=matches.filter(product=>product.id===selectedProduct);
   $('#result-products').replaceChildren(...matches.map(product=>window.createCard(product)));
   $('#result-products').hidden=matches.length===0;
@@ -76,15 +80,16 @@ window.searchReady=(async()=>{
   $('#search-status').textContent=range.error?'Update the price range to see your results.':`${matches.length} product${matches.length===1?'':'s'} found`;
   $('#clear-filters').disabled=category.value==='All'&&!brand.value&&!min.value&&!max.value&&!range.error;
   if(updateUrl){
-   const next=new URLSearchParams();if(query)next.set('q',query);if(selectedProduct)next.set('product',selectedProduct);
+   const next=new URLSearchParams();if(query)next.set('q',query);if(selectedProduct)next.set('product',selectedProduct);if(deals)next.set('deals','1');
    if(category.value!=='All')next.set('category',category.value);if(brand.value)next.set('brand',brand.value);
    if(min.value)next.set('min',min.value);if(max.value)next.set('max',max.value);
+   if((min.value||max.value)&&window.StoreMoney)next.set('currency',priceCurrency);
    window.history.replaceState(null,'','search.html'+(next.size?'?'+next.toString():''));
   }
  }
  for(const field of [category,brand])field.addEventListener('change',()=>render(true));
- for(const field of [min,max])field.addEventListener('input',()=>render(true));
- function clearFilters(){category.value='All';brand.value='';min.value='';max.value='';render(true);}
+ for(const field of [min,max])field.addEventListener('input',()=>{priceCurrency=window.StoreMoney?.code||'USD';render(true);});
+ function clearFilters(){category.value='All';brand.value='';min.value='';max.value='';priceCurrency=window.StoreMoney?.code||'USD';render(true);}
  $('#clear-filters').addEventListener('click',clearFilters);$('#reset-result-filters').addEventListener('click',clearFilters);
  render();
 })();
