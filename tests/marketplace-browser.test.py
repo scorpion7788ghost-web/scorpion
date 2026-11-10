@@ -90,6 +90,31 @@ try:
  assert js("document.querySelector('#hero-product-name').textContent")!=first_slide
  js("document.querySelector('#hero-pause').click()")
  assert js("document.querySelector('#hero-pause').getAttribute('aria-pressed')")=='true'
+ # Exercise every featured slide with real layout measurements, including a long title.
+ original_name=js("window.products[0].name")
+ js("window.products[0].name='Premium Wireless Studio Headphones with Active Noise Cancellation and Travel Case'")
+ for width in [1440,1024,768,640,390,320]:
+  call('Emulation.setDeviceMetricsOverride',dict(width=width,height=1100,deviceScaleFactor=1,mobile=width<640))
+  call('Emulation.setTouchEmulationEnabled',dict(enabled=width<640))
+  for slide in range(4):
+   js(f"document.querySelectorAll('#hero-dots button')[{slide}].click()")
+   time.sleep(.45)
+   layout=js("""(()=>{
+    const rect=selector=>{const r=document.querySelector(selector).getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,center:(r.left+r.right)/2};};
+    return {hero:rect('#tech-hero'),image:rect('#hero-product-image'),caption:rect('.hero-product-caption'),price:rect('#hero-product-price'),controls:rect('.hero-carousel-controls')};
+   })()""")
+   hero,image,caption,price,controls=[layout[key] for key in ['hero','image','caption','price','controls']]
+   label=f'hero width={width}, slide={slide}'
+   assert caption['top']-image['bottom']>=8,label+': image overlaps caption'
+   assert abs(caption['center']-image['center'])<=1,label+': caption is not centered below image'
+   assert controls['top']>=caption['bottom']+8,label+': controls overlap caption'
+   for name,box in [('image',image),('caption',caption),('price',price),('controls',controls)]:
+    assert box['top']>=hero['top'] and box['bottom']<=hero['bottom'] and box['left']>=hero['left'] and box['right']<=hero['right'],label+': '+name+' exceeds hero boundaries'
+   if slide==0 and width in [1440,768,390,320]:shot(f'hero-fixed-{width}.png')
+ js("window.products[0].name="+json.dumps(original_name)+";document.querySelectorAll('#hero-dots button')[0].click()")
+ call('Emulation.setDeviceMetricsOverride',dict(width=1440,height=1050,deviceScaleFactor=1,mobile=False))
+ call('Emulation.setTouchEmulationEnabled',dict(enabled=False))
+ print('PASS: all four hero slides at six viewport widths, long titles, centered prices, image/caption/control separation and banner containment.')
  js("document.querySelector('#header-product-search').value='head';document.querySelector('#header-product-search').dispatchEvent(new Event('input'))")
  assert js("document.querySelectorAll('.suggestion-option').length") == 1
  js("document.querySelector('#header-product-search').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}))")
