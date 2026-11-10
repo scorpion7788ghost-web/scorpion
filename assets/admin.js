@@ -72,5 +72,5 @@ window.adminReady=(async()=>{
   finally{deleting=false;lock(get('delete-user-form'),false);}
  });
  window.AdminAccounts={load,openEdit,openDelete,permissions,user};
- await load();
+ if(document.body.dataset.console!=='true')await load();
 })();

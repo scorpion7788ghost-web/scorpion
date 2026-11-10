@@ -3,9 +3,9 @@ const fs=require('fs');
 const vm=require('vm');
 const assert=require('node:assert/strict');
 const source=fs.readFileSync('assets/supabase-store.js','utf8');
-function app({role='customer',config={},storage=new Map(),handler}={}){
+function app({role='customer',access,view,config={},storage=new Map(),handler}={}){
  const calls=[];
- const context={document:{body:{dataset:{portal:role}}},window:{STORE_CONFIG:{provider:'supabase',supabaseUrl:'https://isolated-check.supabase.co',supabaseKey:'sb_publishable_test',...config}},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},TextEncoder,AbortController,URLSearchParams,setTimeout,clearTimeout,atob,Date,TypeError,
+ const context={document:{body:{dataset:{portal:role,access,view}}},window:{STORE_CONFIG:{provider:'supabase',supabaseUrl:'https://isolated-check.supabase.co',supabaseKey:'sb_publishable_test',...config}},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},TextEncoder,AbortController,URLSearchParams,setTimeout,clearTimeout,atob,Date,TypeError,
   fetch:async(url,options)=>{calls.push({url,options});const {status=200,body={}}=(await handler?.(url,options))||{};return {ok:status>=200&&status<300,status,text:async()=>JSON.stringify(body)};}};
  vm.runInNewContext(source,context);
  return {cloud:context.window.StoreCloud,calls,storage};
@@ -65,6 +65,32 @@ async function main(){
  await assert.rejects(profileFailure.cloud.request('/me','PATCH',{name:'Updated',email:'',currentPassword:'ValidPassword123!',password:'ChangedPassword123!'}),/Your password changed, but your profile details could not be saved/);
  const failed=app({handler:()=>{throw new TypeError('network')}});await assert.rejects(failed.cloud.request('/auth/login','POST',{role:'customer',username:'user',password:'unused'}),/Cannot reach online storage/);
  const buyerStorage=new Map([['lk-auth-v2:https://isolated-check.supabase.co:customer',JSON.stringify({access_token:'buyer-access',refresh_token:'buyer-refresh',expires_at:Date.now()/1000+3600})]]);
+ const buyerProfile={id:'customer_buyer',role:'customer',username:'buyer',name:'Buyer',verification_status:'approved',account_active:true};
+ const buyerServer=(url,options)=>url.includes('/lk_profiles')?{body:[buyerProfile]}:url.includes('/lk_carts')?{body:[{items:{}}]}:server(url,options);
+ for(const access of ['admin','public']){
+  const light=app({access,storage:new Map(buyerStorage),handler:buyerServer});
+  assert.equal((await light.cloud.request('/bootstrap')).user.id,buyerProfile.id);
+  assert(light.calls.some(c=>c.url.endsWith('/auth/v1/user')),'Light bootstrap still validates the session');
+  assert(light.calls.some(c=>c.url.endsWith('/rpc/lk_access_status')),'Light bootstrap still reads backend permissions');
+  assert(!light.calls.some(c=>/\/lk_(shops|products|drafts|carts)|lk_console_categories/.test(c.url)),'Login and staff pages must not load catalog/cart data');
+ }
+ function deferred(){let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};}
+ const flush=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};
+ const gates=new Map(['lk_profiles','lk_access_status','lk_shops','lk_products','lk_console_categories','lk_carts'].map(name=>[name,deferred()]));
+ const concurrent=app({storage:new Map(buyerStorage),handler:async(url,options)=>{const name=[...gates.keys()].find(name=>url.includes('/'+name));if(name)await gates.get(name).promise;return buyerServer(url,options);}});
+ const boot=concurrent.cloud.request('/bootstrap');await flush();
+ assert(concurrent.calls.some(c=>c.url.includes('/lk_profiles'))&&concurrent.calls.some(c=>c.url.includes('/lk_access_status')),'Profile and permissions start together after Auth validation');
+ assert(!concurrent.calls.some(c=>c.url.includes('/lk_products')),'Catalog waits until identity is verified');
+ gates.get('lk_profiles').resolve();gates.get('lk_access_status').resolve();await flush();
+ for(const name of ['lk_shops','lk_products','lk_console_categories','lk_carts'])assert(concurrent.calls.some(c=>c.url.includes('/'+name)),'Independent bootstrap request starts without waiting for other catalog responses: '+name);
+ for(const gate of gates.values())gate.resolve();await boot;
+ const badSession=app({storage:new Map(buyerStorage),handler:()=>({status:401,body:{message:'Invalid token'}})});
+ assert.equal((await badSession.cloud.request('/bootstrap')).user,null);assert.equal(badSession.calls.length,1,'Invalid Auth must not start database requests');
+ const sellerInventory=app({role:'seller',view:'products',storage:new Map(storage),handler:server});await sellerInventory.cloud.request('/bootstrap');
+ assert(!sellerInventory.calls.some(c=>c.url.includes('status=eq.active')),'Seller management does not download every public product');
+ assert(sellerInventory.calls.some(c=>c.url.includes('lk_shops?select=id,profile&id=eq.seller_owned')),'Seller management fetches only its shop');
+ const sellerShop=app({role:'seller',view:'shop',storage:new Map(storage),handler:server});await sellerShop.cloud.request('/bootstrap');
+ assert(sellerShop.calls.some(c=>c.url.includes('status=eq.active')),'Shared seller shop links retain access to the catalog');
  const consoleApp=app({storage:buyerStorage});await consoleApp.cloud.request('/admin/console','POST',{section:'products',filters:{page:2}});await consoleApp.cloud.request('/admin/command','POST',{action:'ticket-status',input:{id:'test',status:'resolved'}});await consoleApp.cloud.request('/notifications');
  assert.deepEqual(consoleApp.calls.map(c=>c.url.split('/').at(-1)),['lk_admin_console','lk_admin_command','lk_notifications']);assert(consoleApp.calls.every(c=>c.options.headers.Authorization==='Bearer buyer-access'));assert.equal(JSON.parse(consoleApp.calls[0].options.body).filters.page,2);
  const inactive=app({role:'seller',storage:new Map(storage),handler:(url,options)=>url.includes('/lk_profiles')?{body:[{account_active:false}]}:server(url,options)});await assert.rejects(inactive.cloud.request('/bootstrap'),/account is inactive/);

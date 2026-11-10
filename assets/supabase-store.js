@@ -74,10 +74,9 @@
  async function identity(){
   const token=await access();if(!token)return null;
   try{await wire('/auth/v1/user',{token});}catch(error){if(error.status===401||error.status===403){remember(null);return null;}throw error;}
-  const mine=await rows('lk_profiles','select=*');
+  const [mine,permissions]=await Promise.all([rows('lk_profiles','select=*'),rpc('lk_access_status',{})]);
   const profile=mine[0];if(!profile)throw new Error('This account has no store profile. Run the Supabase schema setup before registering accounts.');
   if(profile.account_active===false){remember(null);throw new Error('Your account is inactive. Please contact support.');}
-  const permissions=await rpc('lk_access_status',{});
   const isAdmin=permissions.isAdmin===true&&profile.verification_status==='approved';
   if(profile.role!==role&&!(isAdmin&&['customer','seller'].includes(role))){remember(null);throw new Error('Sign in through the correct customer or seller website.');}
   if(isAdmin&&storageKey!==staffKey){const previousKey=storageKey;storageKey=staffKey;remember(session);localStorage.removeItem(previousKey);}
@@ -88,23 +87,32 @@
  async function bootstrap(){
   configured();
   const user=await identity();
-  if(!user||role==='worker'||(user.role==='seller'&&user.verificationStatus!=='approved'))return {portal:role,user,stores:[],products:[],sellerStore:null,cart:{},orders:[],csrf:'',customerUrl:config.customerUrl,sellerUrl:config.sellerUrl};
+  const identityOnly=['admin','public'].includes(document.body?.dataset.access);
+  if(!user||role==='worker'||identityOnly||(user.role==='seller'&&user.verificationStatus!=='approved'))return {portal:role,user,stores:[],products:[],sellerStore:null,cart:{},orders:[],csrf:'',customerUrl:config.customerUrl,sellerUrl:config.sellerUrl};
   if(role==='seller'&&user.isAdmin){
    if(user.portalAccessVersion<1)throw new Error('Admin seller access needs activation. Ask the Owner to run admin-portals.sql in Supabase.');
    await rpc('lk_open_seller_shop',{});
   }
-  const [shops,publicProducts]=await Promise.all([rows('lk_shops','select=id,profile'),rows('lk_products','select=data&status=eq.active&order=created_at.desc')]);
+  // Seller management needs only its own inventory. The shop viewer still gets
+  // the public catalog so existing links to other sellers keep working.
+  const ownInventory=role==='seller'&&document.body?.dataset.view!=='shop';
+  const categoriesRequest=rpc('lk_console_categories',{}).catch(error=>{if(error.code!=='PGRST202')throw error;});
+  const [shops,publicProducts,categories,owned,drafts,saved]=await Promise.all([
+   rows('lk_shops','select=id,profile'+(ownInventory?'&id=eq.'+encodeURIComponent(user.id):'')),
+   ownInventory?Promise.resolve([]):rows('lk_products','select=data&status=eq.active&order=created_at.desc'),
+   categoriesRequest,
+   role==='seller'?rows('lk_products','select=data&seller_id=eq.'+encodeURIComponent(user.id)+'&order=created_at.desc'):Promise.resolve([]),
+   role==='seller'?rows('lk_drafts','select=draft_key,data'):Promise.resolve([]),
+   role==='customer'?rows('lk_carts','select=items'):Promise.resolve([])
+  ]);
   const products=publicProducts.map(row=>row.data);
-  let categories;try{categories=await rpc('lk_console_categories',{});}catch(error){if(error.code!=='PGRST202')throw error;}
   const stores=shops.map(row=>({profile:row.profile,products:products.filter(p=>p.sellerId===row.id)}));
   let sellerStore=null,cart={};
   if(role==='seller'){
-   const [owned,drafts]=await Promise.all([rows('lk_products','select=data&seller_id=eq.'+encodeURIComponent(user.id)+'&order=created_at.desc'),rows('lk_drafts','select=draft_key,data')]);
    const shop=shops.find(s=>s.id===user.id);if(!shop)throw new Error('Your seller store record is missing.');
    sellerStore={profile:shop.profile,products:owned.map(row=>row.data),orders:[],drafts:Object.fromEntries(drafts.map(row=>[row.draft_key,row.data]))};
   }
   if(role==='customer'){
-   const saved=await rows('lk_carts','select=items');
    const available=new Map(products.map(product=>[product.id,product]));
    for(const [id,quantity] of Object.entries(saved[0]?.items||{})){
     const product=available.get(id);

@@ -18,19 +18,20 @@ class Element{
  closest(selector){for(let n=this;n;n=n.parentElement)if(n.matches(selector))return n;return null;}
 }
 function documentFromHtml(){const root=new Element('document'),stack=[root],voids=new Set(['meta','link','input','img','br','hr']);for(const match of fs.readFileSync('admin.html','utf8').matchAll(/<\/?([\w-]+)\b([^>]*)>/g)){const [,tag,attrs]=match;if(match[0].startsWith('</')){if(voids.has(tag))continue;const pos=stack.findLastIndex(e=>e.tagName===tag.toUpperCase());assert(pos>0,'HTML closing tag must match: '+tag);stack.length=pos;continue;}const e=new Element(tag);for(const a of attrs.matchAll(/([\w-]+)(?:="([^"]*)")?/g))e.setAttribute(a[1],a[2]??'');stack.at(-1).append(e);if(!voids.has(tag))stack.push(e);}root.body=root.querySelector('body');root.getElementById=id=>root.querySelector('#'+id);root.createElement=tag=>new Element(tag);return root;}
-async function setup({missing=false,owner=true,series=[{date:'2026-11-08',sales:1000,orders:1,users:3,sellers:1}]}={}){
+async function setup({missing=false,owner=true,securityRequest,series=[{date:'2026-11-08',sales:1000,orders:1,users:3,sellers:1}]}={}){
  const doc=documentFromHtml(),requests=[],location={hash:'',href:'https://example.test/admin.html'},window=new Element('window');doc.createElementNS=(ns,tag)=>new Element(tag);
  const user={id:'customer_owner',name:'Owner'},person={auth_id:'buyer-id',id:'customer_buyer',role:'customer',username:'buyer',name:'Buyer',email:'',created_at:'2026-11-08T00:00:00Z',account_active:true,isAdmin:false};
  const prod={id:'product_test',name:'Test item',seller:'seller',category:'Tech',price:10,stock:3,status:'active',moderation:'pending',display_status:'pending',summary:'Summary',description:'Description',image:'assets/products/placeholder.svg'};
  const order={id:'ORDER-1',customer_name:'Buyer',seller_name:'Seller',items:[{name:'Test item',quantity:1}],total_cents:1000,refunded_cents:0,status:'processing',payment_status:'unpaid',tracking:'',created_at:'2026-11-08T00:00:00Z'};
  const seller={...person,auth_id:'seller-id',role:'seller',username:'seller',verification_status:'pending',display_status:'pending'};
- const config={settings:{store_name:'LK Tech Store',support_email:'',moderation_required:false},preferences:{show_security_alerts:false,show_pending_sellers:true},categories:[{name:'Tech',active:true}]};
+ const config={settings:{store_name:'LK Tech Store',support_email:'',moderation_required:false},preferences:{show_security_alerts:!!securityRequest,show_pending_sellers:true},categories:[{name:'Tech',active:true}]};
  const context={window,document:doc,Element,location,history:{replaceState(a,b,hash){location.hash=hash;}},localStorage:{getItem:()=>null,setItem(){}},matchMedia:()=>({matches:false}),Date,URLSearchParams,URL,Blob,crypto:{randomUUID:()=> 'test-request'},setTimeout,clearTimeout,Store:{accessReady:Promise.resolve(true),auth:{current:()=>user},safeImage:p=>p,request:async(path,method,data)=>{
   requests.push({path,method,data});if(path==='/admin/permissions')return {isAdmin:true,isOwner:owner};
   if(path.startsWith('/admin/directory?'))return {users:[person],total:1};if(path==='/admin/command')return {ok:true};
   if(path==='/admin/console'){
    if(missing)throw Object.assign(Error('Upgrade needed'),{code:'PGRST202'});
    const section=data.section;if(section==='settings')return config;
+   if(section==='logs'&&data.filters.status==='security'&&securityRequest)return securityRequest;
    if(['dashboard','analytics'].includes(section))return {metrics:{users:3,sellers:1,customers:2,products:1,orders:1,pending:1,sales:1000,refunds:0,periodOrders:1,activeProducts:1,unresolved:1},series,recentOrders:[order],recentActivities:[]};
    if(section==='seller-detail')return {profile:seller,history:[],documents:[]};if(section==='product-detail')return {data:prod,moderation:'pending'};if(section==='order-detail')return order;
    const rows={accounts:[person],verifications:[seller],products:[prod],orders:[order],notifications:[{title:'<script>unsafe</script>',body:'Notification',audience:'all'}],support:[{id:'buyer-id',name:'Buyer',username:'buyer',status:'open',preview:'Help'}],logs:[{action:'admin.login',actor_name:'Admin',entity_id:'id',details:{}}]}[section];assert(rows,'Known backend section '+section);return {rows,total:rows.length};
@@ -46,6 +47,10 @@ async function setup({missing=false,owner=true,series=[{date:'2026-11-08',sales:
 }
 async function main(){
  const p=await setup();assert.equal(p.doc.querySelectorAll('[data-section]').length,10);
+ assert(!p.requests.some(r=>r.path.startsWith('/admin/directory')),'Dashboard does not preload an invisible account directory');
+ let failSecurity;const securityRequest=new Promise((resolve,reject)=>{failSecurity=reject;});
+ const slowLogs=await setup({securityRequest});assert(slowLogs.get('content-dashboard').querySelector('.console-stats'),'Dashboard renders before optional security logs finish');
+ failSecurity(Error('Log request timed out'));await slowLogs.flush();assert(slowLogs.get('content-dashboard').querySelector('.console-stats'),'Log failure must not replace a successful dashboard');assert(slowLogs.get('content-dashboard').textContent.includes('Security notices could not be loaded'));
  const dashboard=p.get('content-dashboard');
  assert.equal(dashboard.querySelector('.console-chart-total').textContent,'$10.00');
  const point=dashboard.querySelector('.chart-hit');await point.fire('focus');assert(dashboard.querySelector('.console-chart-caption').textContent.includes('$10.00'));

@@ -32,6 +32,8 @@
   finally{finishInitial();}
  }
  if(document.readyState==='complete')ready().catch(()=>{});
- else window.addEventListener('load',()=>{ready().catch(()=>{});},{once:true});
+ // Deferred app scripts are ready at DOMContentLoaded; images and fonts must not
+ // keep an otherwise usable page behind the modal until window.load.
+ else window.addEventListener('DOMContentLoaded',()=>{ready().catch(()=>{});},{once:true});
  window.addEventListener('pagehide',hide);
 })();

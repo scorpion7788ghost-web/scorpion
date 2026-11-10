@@ -5,7 +5,8 @@
  const base=window.STORE_CONFIG?.apiBase||'/api';
  let failure='';
  async function request(path,method='GET',data){
-  const foreground=path==='/bootstrap'||method!=='GET'||/^\/(admin|staff)\/(users|directory|sellers)/.test(path);
+  // Console reads have their own section loading state, including optional logs.
+  const foreground=path==='/bootstrap'||(method!=='GET'&&path!=='/admin/console')||/^\/(admin|staff)\/(users|directory|sellers)/.test(path);
   const finishLoading=foreground?window.StoreLoading?.begin():null;
   try{return await performRequest(path,method,data);}finally{finishLoading?.();}
  }
