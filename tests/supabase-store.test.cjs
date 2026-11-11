@@ -73,6 +73,17 @@ async function main(){
  assert.equal(JSON.parse(buyerRoutes.calls[5].options.body).operation,'create');
  assert.equal(JSON.parse(buyerRoutes.calls[6].options.body).expected_updated_at,'2026-11-10T00:00:00Z');
  assert.equal(JSON.parse(buyerRoutes.calls[7].options.body).operation,'delete');
+ const codRoutes=[
+  ['/checkout/delivery','GET',undefined,'lk_delivery_options',{}],
+  ['/checkout/quote','POST',{district:'Colombo',total:1},'lk_checkout_quote',{district_name:'Colombo'}],
+  ['/checkout/place','POST',{id:'quote-id',delivery:{name:'Buyer'},price:1,customer_id:'other'},'lk_checkout_place',{checkout_key:'quote-id',delivery:{name:'Buyer'}}],
+  ['/checkout/details?id=quote-id','GET',undefined,'lk_checkout_details',{checkout_key:'quote-id'}],
+  ['/checkout/resume?id=quote-id','GET',undefined,'lk_checkout_resume',{checkout_key:'quote-id'}],
+  ['/seller/orders?page=2','GET',undefined,'lk_seller_orders',{page_number:2}],
+  ['/admin/delivery','POST',{operation:'list'},'lk_delivery_config',{operation:'list',input:{}}],
+  ['/admin/cod-order','POST',{id:'order-id',status:'processing'},'lk_cod_manage',{input:{id:'order-id',status:'processing'}}]
+ ];
+ for(const [path,method,data,name,expected] of codRoutes){await buyerRoutes.cloud.request(path,method,data);const call=buyerRoutes.calls.at(-1);assert(call.url.endsWith('/rpc/'+name));assert.deepEqual(JSON.parse(call.options.body),expected);}
  const brandMissing=app({role:'seller',storage,handler:()=>({status:404,body:{code:'PGRST202',message:'Function not found'}})});
  assert.equal((await brandMissing.cloud.request('/catalog/fields')).brand,false);
  const brandFailure=app({role:'seller',storage,handler:()=>({status:503,body:{message:'Storage unavailable'}})});

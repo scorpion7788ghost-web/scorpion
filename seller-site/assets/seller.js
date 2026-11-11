@@ -31,9 +31,14 @@ function dashboard(){
  if(!products.length)$('#recent-products').append(el('p','seller-empty','Your first product belongs here. Add something new to get started.'));
  $('#dashboard-shop-link').href='shop.html?id='+encodeURIComponent(sellerUser.id);
 }
-function orders(){
- refreshSeller();$('#orders-empty').hidden=sellerStore.orders.length!==0;
- $('#order-rows').replaceChildren(...sellerStore.orders.map(order=>{const row=el('tr');row.append(el('td','',order.id),el('td','',order.customer),el('td','',sellerStore.products.find(p=>p.id===order.productId)?.name||order.productId),el('td','',money(order.total)));const control=el('td');const select=el('select','order-select');select.setAttribute('aria-label','Status for '+order.id);for(const value of ['Processing','Shipped','Delivered','Cancelled']){const option=el('option','',value);option.value=value;option.selected=value===order.status;select.append(option);}select.addEventListener('change',async()=>{try{await Store.db.setOrderStatus(sellerUser.id,order.id,select.value);toast('Order status saved.');}catch(error){toast(error.message);orders();}});control.append(select);row.append(control);return row;}));
+async function orders(page=1){
+ const rows=$('#order-rows'),empty=$('#orders-empty'),pager=$('#seller-orders-pagination');rows.replaceChildren();empty.hidden=false;empty.textContent='Loading orders...';pager.replaceChildren();
+ try{const result=await Store.request('/seller/orders?page='+page);empty.hidden=result.orders.length>0;empty.textContent='No orders for your store yet.';
+ for(const order of result.orders){const row=el('tr'),items=el('td');for(const item of order.items)items.append(el('p','',`${item.name||'Product'} x ${item.quantity}`));
+ if(order.delivery){const d=order.delivery;for(const value of [d.name,d.mobile,d.email,d.address,d.city,d.district,d.postalCode,d.instructions])if(value)items.append(el('p','',value));}
+ row.append(el('td','',order.id),el('td','',order.customer_name),items,el('td','',money(order.total_cents/100)),el('td','',order.status+' - '+order.payment_status+(order.payment_method==='cod'?' - COD':'')));rows.append(row);}
+ for(const [label,next,disabled] of [['Previous',page-1,page<=1],['Next',page+1,page*20>=result.total]]){const button=el('button','',label);button.disabled=disabled;button.addEventListener('click',()=>orders(next));pager.append(button);}
+ }catch(error){empty.textContent=error.message;const retry=el('button','','Try again');retry.addEventListener('click',()=>orders(page));pager.append(retry);}
 }
 function settings(){
  for(const field of ['name','tagline','description','email','phone','location'])$('#store-'+field).value=sellerStore.profile[field]||'';

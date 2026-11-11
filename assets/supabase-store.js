@@ -127,6 +127,14 @@
   if(path==='/admin/console'&&method==='POST')return rpc('lk_admin_console',{section:data.section,filters:data.filters||{}});
   if(path==='/admin/command'&&method==='POST')return rpc('lk_admin_command',{action:data.action,input:data.input});
   if(path==='/notifications'&&method==='GET')return rpc('lk_notifications',{});
+  if(path==='/checkout/delivery'&&method==='GET')return rpc('lk_delivery_options',{});
+  if(path==='/checkout/quote'&&method==='POST')return rpc('lk_checkout_quote',{district_name:data.district});
+  if(path==='/checkout/place'&&method==='POST')return rpc('lk_checkout_place',{checkout_key:data.id,delivery:data.delivery});
+  if(path.startsWith('/checkout/details?')&&method==='GET')return rpc('lk_checkout_details',{checkout_key:new URLSearchParams(path.split('?')[1]).get('id')});
+  if(path.startsWith('/checkout/resume?')&&method==='GET')return rpc('lk_checkout_resume',{checkout_key:new URLSearchParams(path.split('?')[1]).get('id')});
+  if(path==='/admin/delivery'&&method==='POST')return rpc('lk_delivery_config',{operation:data.operation||'list',input:data.input||{}});
+  if(path==='/admin/cod-order'&&method==='POST')return rpc('lk_cod_manage',{input:data});
+  if(path.startsWith('/seller/orders?')&&method==='GET')return rpc('lk_seller_orders',{page_number:Number(new URLSearchParams(path.split('?')[1]).get('page')||1)});
   if(path.startsWith('/reviews?')&&method==='GET'){const p=new URLSearchParams(path.split('?')[1]);return rpc('lk_product_review_list',{product_key:p.get('product'),sort_order:p.get('sort')||'newest',page_number:Number(p.get('page')||1)});}
   if(path==='/reviews'&&['POST','PATCH','DELETE'].includes(method))return rpc('lk_product_review_write',{operation:{POST:'create',PATCH:'update',DELETE:'delete'}[method],product_key:data.productId,review_id:data.id||null,review_rating:data.rating??null,review_title:data.title??null,review_body:data.body??null,expected_updated_at:data.updatedAt||null});
   if(path==='/wishlist'&&method==='GET')return rpc('lk_buyer_wishlist',{operation:'list'});

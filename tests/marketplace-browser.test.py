@@ -23,6 +23,11 @@ review_rows = {}
 review_calls = []
 review_allowed = True
 review_fail_save = False
+checkout_quotes = {}
+checkout_orders = {}
+checkout_calls = []
+checkout_fail_before = False
+checkout_lose_response = False
 
 class Handler(SimpleHTTPRequestHandler):
  def log_message(self,*args): pass
@@ -30,8 +35,13 @@ class Handler(SimpleHTTPRequestHandler):
   content=json.dumps(data).encode();self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(content)
  def do_GET(self):
   path=self.path.split('?')[0]
-  if path=='/assets/store-config.js':
+  if path in ['/assets/store-config.js','/seller-site/assets/store-config.js']:
    self.send_response(200);self.send_header('Content-Type','text/javascript');self.end_headers();self.wfile.write(b'window.STORE_CONFIG={provider:"php",apiBase:"/api",sellerUrl:location.origin+"/seller-site/",customerUrl:location.origin+"/"};');return
+  if path=='/api/bootstrap' and '/seller-site/' in self.headers.get('Referer',''):
+   shop=dict(profile=dict(id='qa_seller',name='Isolated QA Store'),products=products,orders=[],drafts={})
+   return self.reply(dict(user=dict(id='qa_seller',username='qa_seller',name='QA Seller',role='seller',verificationStatus='approved'),products=products,stores=[shop],sellerStore=shop,cart={},orders=[]))
+  if path=='/api/seller/orders':
+   return self.reply(dict(orders=[dict(**order,customer_name=receipt['delivery']['name'],currency='USD',delivery=receipt['delivery']) for receipt in checkout_orders.values() for order in receipt['orders']],total=len(checkout_orders)))
   if path=='/api/bootstrap':return self.reply(dict(user=dict(id='qa_buyer',name='Browser QA',role='customer'),products=products,stores=[dict(profile=dict(id='qa_seller',name='Isolated QA Store'))],cart=cart,orders=[]))
   if path=='/api/reviews':
    query=parse_qs(urlsplit(self.path).query);key=query['product'][0];page=int(query.get('page',['1'])[0]);sort=query.get('sort',['newest'])[0]
@@ -39,6 +49,10 @@ class Handler(SimpleHTTPRequestHandler):
    rows.sort(key=lambda row:(row['rating'] if sort in ['highest','lowest'] else row['createdAt'],row['id']),reverse=sort in ['newest','highest'])
    summary=dict(total=len(rows),average=sum(row['rating'] for row in rows)/len(rows) if rows else 0,distribution={str(i):sum(row['rating']==i for row in rows) for i in range(1,6)})
    return self.reply(dict(summary=summary,reviews=rows[(page-1)*10:page*10],mine=next((row for row in rows if row['isMine']),None),page=page,pageSize=10,canReview=review_allowed,eligibilityMessage='' if review_allowed else 'A paid purchase is required.'))
+  if path=='/api/checkout/delivery':return self.reply([dict(district='Local test district',fee_cents=500,per_seller=False,active=True)])
+  if path in ['/api/checkout/resume','/api/checkout/details']:
+   key=parse_qs(urlsplit(self.path).query)['id'][0]
+   return self.reply(dict(placed=key in checkout_orders,quote=checkout_quotes[key]) if path.endswith('resume') else checkout_orders[key])
   if path=='/api/wishlist':return self.reply(list(saved))
   if path=='/api/my/orders':return self.reply(dict(orders=[dict(id='qa_order',items=[dict(name=products[0]['name'],quantity=1)],total_cents=7900,currency='USD',status='processing',payment_status='paid',tracking='',seller_name='QA Store',created_at='2026-11-01T00:00:00Z')],total=1))
   if path=='/api/notifications':return self.reply([dict(title='QA announcement',body='Isolated notification check',created_at='2026-11-01T00:00:00Z')])
@@ -61,7 +75,28 @@ class Handler(SimpleHTTPRequestHandler):
   if method=='DELETE':review_rows.pop(key,None);return self.reply(dict(deleted=True))
   now=datetime.now(timezone.utc).isoformat();row=dict(id=key,productId=body['productId'],rating=body['rating'],title=body['title'],body=body['body'],name='QA Buyer',isMine=True,verifiedPurchase=True,createdAt=review_rows.get(key,{}).get('createdAt',now),updatedAt=now)
   review_rows[key]=row;return self.reply(row)
- def do_POST(self):return self.review_write('POST')
+ def do_POST(self):
+  if not self.path.startswith('/api/checkout/'):return self.review_write('POST')
+  body=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+  if self.path=='/api/checkout/quote':
+   key='00000000-0000-4000-8000-'+str(len(checkout_quotes)+1).zfill(12)
+   lines=[dict(productId=p['id'],name=p['name'],image=p['image'],sku='',quantity=cart[p['id']],unit_cents=round(p['price']*100),line_cents=round(p['price']*100)*cart[p['id']]) for p in products if p['id'] in cart]
+   subtotal=sum(i['line_cents'] for i in lines);q=dict(id=key,items=lines,district=body['district'],perSeller=False,currency='USD',subtotal_cents=subtotal,delivery_fee_cents=500,total_cents=subtotal+500,expiresAt='2099-01-01T00:00:00Z')
+   checkout_quotes[key]=q;return self.reply(q)
+  if self.path=='/api/checkout/place':
+   checkout_calls.append(body)
+   if checkout_fail_before:
+    self.send_response(503);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(b'{"error":"Temporary failure; please retry"}');return
+   key=body['id'];q=checkout_quotes[key]
+   if key not in checkout_orders:
+    order=dict(id='LK-isolated-'+key,items=q['items'],seller_name='Local QA seller',status='pending',payment_status='unpaid',payment_method='cod',tracking='',total_cents=q['total_cents'])
+    checkout_orders[key]=dict(id=key,createdAt='2026-11-11T12:00:00Z',delivery=body['delivery'],currency='USD',subtotal_cents=q['subtotal_cents'],delivery_fee_cents=q['delivery_fee_cents'],total_cents=q['total_cents'],orders=[order])
+    cart.clear()
+   if checkout_lose_response:
+    self.send_response(503);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(b'{"error":"Response lost after saving"}');return
+   return self.reply(checkout_orders[key])
+  self.send_error(404)
+
  def do_PATCH(self):return self.review_write('PATCH')
  def do_DELETE(self):return self.review_write('DELETE')
 
@@ -221,6 +256,55 @@ try:
   assert js('document.documentElement.scrollWidth<=innerWidth'),f'Reviews overflow at {width}'
   if width in [1440,390]:shot(f'reviews-{width}.png')
  print('PASS: review submission/edit/delete, reload persistence, duplicate-click prevention, failed-save draft retention, safe text rendering, purchase eligibility, sorting, pagination and responsive review UI.')
+ # COD checkout exercises real page code; all orders remain in this localhost fixture.
+ cart.clear();visit('checkout.html');js('window.checkoutReady')
+ assert not js("document.querySelector('#checkout-empty').hidden")
+ cart.update({'qa_0':2,'qa_1':1});visit('cart.html')
+ assert js("document.querySelector('#checkout-link').getAttribute('href')")=='checkout.html'
+ visit('checkout.html');js('window.checkoutReady')
+ assert js("document.querySelector('#place-order').disabled")
+ js("document.querySelector('#checkout-district').value='Local test district';document.querySelector('#checkout-district').dispatchEvent(new Event('change'))")
+ wait("!document.querySelector('#place-order').disabled")
+ assert '222.00' in js("document.querySelector('#checkout-total').textContent")
+ assert 'Cash on Delivery' in js("document.querySelector('.cod-method').textContent")
+ js("document.querySelector('#checkout-form').requestSubmit()")
+ assert not checkout_calls,'Missing required delivery details must block submission'
+ for key,value in dict(name='Local Browser QA',mobile='+94770000000',address='Local test address',city='Test city',postalCode='10100',instructions='Test only').items():
+  js("document.querySelector('#checkout-"+key+"').value="+json.dumps(value))
+ for width in [1440,768,390,320]:
+  call('Emulation.setDeviceMetricsOverride',dict(width=width,height=1050,deviceScaleFactor=1,mobile=width<640));time.sleep(.1)
+  assert js('document.documentElement.scrollWidth<=innerWidth'),f'Checkout overflow at {width}'
+  if width in [1440,390]:shot(f'checkout-{width}.png')
+ checkout_fail_before=True
+ js("document.querySelector('#checkout-form').requestSubmit()")
+ wait("!document.querySelector('#place-order').disabled")
+ assert not checkout_orders and cart
+ assert js("document.querySelector('#checkout-address').value")=='Local test address'
+ assert 'Temporary failure' in js("document.querySelector('#checkout-error').textContent")
+ checkout_fail_before=False;checkout_lose_response=True
+ before=len(checkout_calls)
+ js("document.querySelector('#checkout-form').requestSubmit();document.querySelector('#checkout-form').requestSubmit()")
+ wait("location.pathname.endsWith('order-confirmation.html') && document.querySelector('#order-confirmation') && !document.querySelector('#order-confirmation').hidden")
+ assert len(checkout_calls)==before+1 and len(checkout_orders)==1 and not cart
+ assert 'Payment Status: Unpaid' in js("document.querySelector('#confirmation-content').textContent")
+ assert 'Payment Method: Cash on Delivery' in js("document.querySelector('#confirmation-content').textContent")
+ current=js('location.pathname.split("/").pop()+location.search');visit(current);js('window.checkoutReady')
+ assert 'Local test address' in js("document.querySelector('#confirmation-content').textContent")
+ for width in [1440,768,390,320]:
+  call('Emulation.setDeviceMetricsOverride',dict(width=width,height=1050,deviceScaleFactor=1,mobile=width<640));time.sleep(.1)
+  assert js('document.documentElement.scrollWidth<=innerWidth'),f'Confirmation overflow at {width}'
+  if width in [1440,390]:shot(f'confirmation-{width}.png')
+ print('PASS: COD cart entry, empty cart, delivery quotes, required fields, responsive checkout/confirmation, failed-save preservation, duplicate-click prevention, lost-response recovery and persisted order reload.')
+ # Seller order view receives the same stored order and delivery snapshot.
+ visit('seller-site/orders.html');js('window.sellerReady')
+ wait("document.querySelector('#order-rows').children.length===1")
+ assert 'Local test address' in js("document.querySelector('#order-rows').textContent")
+ assert 'unpaid' in js("document.querySelector('#order-rows').textContent")
+ assert js("document.querySelector('#seller-orders-pagination').children.length")==2
+ for width in [1440,768,390]:
+  call('Emulation.setDeviceMetricsOverride',dict(width=width,height=1050,deviceScaleFactor=1,mobile=width<640));time.sleep(.1)
+  assert js('document.documentElement.scrollWidth<=innerWidth'),f'Seller orders overflow at {width}'
+ print('PASS: Seller Site loads COD order items, unpaid status, delivery information, pagination and responsive table.')
  assert not errors,errors
  print('PASS: real Chrome storefront, four responsive widths without page overflow, themes, suggestions, quick view, wishlist persistence/failure recovery, cart, notifications, orders, categories, deals and product links. No browser exceptions. Isolated fixtures only.')
 finally:
