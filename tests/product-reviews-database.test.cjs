@@ -29,7 +29,7 @@ const {PGlite}=require('../.qa/pglite/package/dist/index.cjs');
   assert.equal((await list(buyer)).canReview,false,'Invalid orders cannot verify a purchase');
   await order(buyer,'paid',[{productId:p.id,quantity:1}]);
   assert.equal((await list(buyer)).canReview,true);
-  for(const invalid of [{rating:0},{rating:6},{rating:null},{title:' '},{title:'x'.repeat(101)},{body:' '},{body:'x'.repeat(3001)}])await assert.rejects(write(buyer,'create',invalid));
+  for(const invalid of [{rating:0},{rating:6},{rating:null},{title:' '},{title:'\t\n'},{title:'x'.repeat(101)},{body:' '},{body:'\t\n'},{body:'x'.repeat(3001)}])await assert.rejects(write(buyer,'create',invalid));
   let review=await write(buyer,'create');assert.equal(review.verifiedPurchase,true);assert.equal(review.isMine,true);
   await assert.rejects(write(buyer,'create'),/already reviewed/);
   let read=await list(other);assert.equal(read.summary.average,5);assert.equal(read.summary.distribution['5'],1);assert.equal(read.reviews[0].isMine,false);assert.equal(read.mine,null);assert(!JSON.stringify(read).includes(buyer),'Do not expose customer auth IDs');

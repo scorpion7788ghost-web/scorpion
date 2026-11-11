@@ -85,7 +85,9 @@ begin
  if product.owner_id=account.auth_id then raise exception 'You cannot review products from your own store.' using errcode='42501'; end if;
  if review_rating is null or review_rating not between 1 and 5 then raise exception 'Choose a rating from 1 to 5 stars.'; end if;
  review_title:=btrim(review_title); review_body:=btrim(review_body);
- if review_title is null or length(review_title) not between 1 and 100 or review_body is null or length(review_body) not between 1 and 3000 then raise exception 'Enter a title (1-100 characters) and review (1-3000 characters).'; end if;
+ if review_title is null or length(review_title) not between 1 and 100 or review_title !~ '[^[:space:]]'
+  or review_body is null or length(review_body) not between 1 and 3000 or review_body !~ '[^[:space:]]'
+ then raise exception 'Enter a title (1-100 characters) and review (1-3000 characters).'; end if;
  if operation='create' then
   if review_id is not null then raise exception 'A new review cannot specify an existing review.'; end if;
   if not lk_private.review_purchase(product_key,account.auth_id) then raise exception 'A paid purchase of this product is required to write a review.' using errcode='42501'; end if;
