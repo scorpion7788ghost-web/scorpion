@@ -25,11 +25,12 @@ function inventory(){
 }
 function dashboard(){
  const products=sellerStore.products;$('#dashboard-name').textContent=sellerUser.name.split(' ')[0];
- const metrics=[['Total products',products.length,'Your complete collection'],['Active listings',products.filter(p=>p.status==='active').length,'Ready on your seller page'],['Stock units',products.filter(p=>p.status!=='archived').reduce((sum,p)=>sum+p.stock,0),'Across your available inventory'],['Orders',sellerStore.orders.length,'Orders received by your store']];
+ const metrics=[['Total products',products.length,'Your complete collection'],['Active listings',products.filter(p=>p.status==='active').length,'Ready on your seller page'],['Stock units',products.filter(p=>p.status!=='archived').reduce((sum,p)=>sum+p.stock,0),'Across your available inventory'],['Orders','...','Orders received by your store']];
  $('#dashboard-stats').replaceChildren(...metrics.map(([label,value,note])=>{const card=el('div','stat-card');card.append(el('span','',label),el('strong','',String(value)),el('small','',note));return card;}));
  $('#recent-products').replaceChildren(...products.slice(0,5).map(p=>{const row=el('div','recent-product');row.append(productCell(p),statusPill(p.status));const link=el('a','',money(p.price)+' \u2197');link.href='edit-product.html?id='+encodeURIComponent(p.id);row.append(link);return row;}));
  if(!products.length)$('#recent-products').append(el('p','seller-empty','Your first product belongs here. Add something new to get started.'));
  $('#dashboard-shop-link').href='shop.html?id='+encodeURIComponent(sellerUser.id);
+ const orderStat=$('#dashboard-stats').lastElementChild.querySelector('strong');Store.request('/seller/orders?page=1').then(result=>{orderStat.textContent=String(result.total);}).catch(()=>{orderStat.textContent='Unavailable';});
 }
 async function orders(page=1){
  const rows=$('#order-rows'),empty=$('#orders-empty'),pager=$('#seller-orders-pagination');rows.replaceChildren();empty.hidden=false;empty.textContent='Loading orders...';pager.replaceChildren();
@@ -54,7 +55,7 @@ function publicShop(){
  const contact=[data.profile.email,data.profile.phone,data.profile.location].filter(Boolean);if(contact.length)target.append(el('p','',contact.join(' / ')));
  const list=data.products.filter(p=>p.status==='active');
  const dialog=el('dialog','shop-dialog');dialog.setAttribute('aria-labelledby','shop-dialog-title');const close=el('button','close-dialog','\u00d7');close.setAttribute('aria-label','Close product details');close.addEventListener('click',()=>dialog.close());const body=el('div','shop-detail');dialog.append(close,body);document.body.append(dialog);
- function openProduct(product){body.replaceChildren();const image=imageFor(product);const title=el('h2','',product.name);title.id='shop-dialog-title';body.append(image,el('p','eyebrow',product.category),title,el('p','',product.description),el('strong','',money(product.price)),el('p','notice-text','Checkout is not enabled yet.'));dialog.showModal();}
+ function openProduct(product){body.replaceChildren();const image=imageFor(product);const title=el('h2','',product.name);title.id='shop-dialog-title';body.append(image,el('p','eyebrow',product.category),title,el('p','',product.description),el('strong','',money(product.price)),el('p','notice-text','Cash on Delivery is available on the Buyer website.'));const buy=el('a','primary-button','View on Buyer Site');buy.href=new URL('product.html?id='+encodeURIComponent(product.id),window.STORE_CONFIG.customerUrl).href;body.append(buy);dialog.showModal();}
  $('#seller-public-products').replaceChildren(...list.map(product=>{const button=el('button','shop-product');const art=el('div','product-art');art.style.setProperty('--card-color',product.color);art.append(imageFor(product));button.append(art,el('span','product-category',product.category),el('h2','',product.name),el('strong','',money(product.price)),el('p','',product.summary));button.addEventListener('click',()=>openProduct(product));return button;}));
  if(!list.length)$('#seller-public-products').append(el('p','seller-empty','This seller is preparing a new collection. Come back soon.'));
  const selected=new URLSearchParams(location.search).get('product');const product=list.find(p=>p.id===selected);if(product)openProduct(product);

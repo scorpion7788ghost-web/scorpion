@@ -16,6 +16,7 @@ products = [dict(id=f'qa_{i}', sellerId='qa_seller', name=name, category=categor
  ('Wireless Headphones','Audio',79),('Mechanical Gaming Keyboard','Tech',59),
  ('Precision Mouse','Accessories',29),('Ultra Laptop','Laptops',799),
  ('Smartphone','Mobiles',499),('Gaming Monitor','Monitors',249)])]
+for product in products:product['status']='active'
 products[0]['originalPrice'] = 99
 saved, cart = set(), {}
 fail_save = False
@@ -305,6 +306,8 @@ try:
   call('Emulation.setDeviceMetricsOverride',dict(width=width,height=1050,deviceScaleFactor=1,mobile=width<640));time.sleep(.1)
   assert js('document.documentElement.scrollWidth<=innerWidth'),f'Seller orders overflow at {width}'
  print('PASS: Seller Site loads COD order items, unpaid status, delivery information, pagination and responsive table.')
+ visit('seller-site/dashboard.html');js('window.sellerReady')
+ wait("document.querySelector('#dashboard-stats').lastElementChild.querySelector('strong').textContent==='1'")
  assert not errors,errors
  print('PASS: real Chrome storefront, four responsive widths without page overflow, themes, suggestions, quick view, wishlist persistence/failure recovery, cart, notifications, orders, categories, deals and product links. No browser exceptions. Isolated fixtures only.')
 finally:

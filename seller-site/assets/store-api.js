@@ -39,7 +39,7 @@
   async updateStore(id,input){db.requireSeller(id);await request('/seller/store','PATCH',{...input,storeId:id});await refresh();return db.requireSeller(id);},
   async saveProduct(id,input,productId){db.requireSeller(id);const result=await request('/seller/products'+(productId?'/'+encodeURIComponent(productId):''),productId?'PUT':'POST',{...input,storeId:id});await refresh();return result.product;},
   async setProductStatus(id,productId,status){db.requireSeller(id);await request('/seller/products/'+encodeURIComponent(productId)+'/status','PATCH',{status});await refresh();},
-  async setOrderStatus(){throw new Error('Order processing is not enabled. No orders have been created.');},
+  async setOrderStatus(){throw new Error('Order fulfillment is managed from the Admin Panel.');},
   async exportStore(id){db.requireSeller(id);return request('/seller/export');},
   async saveDraft(id,key,data){db.requireSeller(id);await request('/seller/draft?key='+encodeURIComponent(key),'PUT',data);await refresh();},
   async removeDraft(id,key){db.requireSeller(id);await request('/seller/draft?key='+encodeURIComponent(key),'DELETE',{});await refresh();},
