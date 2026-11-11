@@ -3,6 +3,8 @@ import base64, json, os, subprocess, threading, time, urllib.request
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 import websocket
+from urllib.parse import urlsplit,parse_qs
+from datetime import datetime,timezone
 
 ROOT = Path(__file__).resolve().parents[1]
 os.chdir(ROOT)
@@ -17,6 +19,10 @@ products = [dict(id=f'qa_{i}', sellerId='qa_seller', name=name, category=categor
 products[0]['originalPrice'] = 99
 saved, cart = set(), {}
 fail_save = False
+review_rows = {}
+review_calls = []
+review_allowed = True
+review_fail_save = False
 
 class Handler(SimpleHTTPRequestHandler):
  def log_message(self,*args): pass
@@ -27,6 +33,12 @@ class Handler(SimpleHTTPRequestHandler):
   if path=='/assets/store-config.js':
    self.send_response(200);self.send_header('Content-Type','text/javascript');self.end_headers();self.wfile.write(b'window.STORE_CONFIG={provider:"php",apiBase:"/api",sellerUrl:location.origin+"/seller-site/",customerUrl:location.origin+"/"};');return
   if path=='/api/bootstrap':return self.reply(dict(user=dict(id='qa_buyer',name='Browser QA',role='customer'),products=products,stores=[dict(profile=dict(id='qa_seller',name='Isolated QA Store'))],cart=cart,orders=[]))
+  if path=='/api/reviews':
+   query=parse_qs(urlsplit(self.path).query);key=query['product'][0];page=int(query.get('page',['1'])[0]);sort=query.get('sort',['newest'])[0]
+   rows=[row for row in review_rows.values() if row['productId']==key]
+   rows.sort(key=lambda row:(row['rating'] if sort in ['highest','lowest'] else row['createdAt'],row['id']),reverse=sort in ['newest','highest'])
+   summary=dict(total=len(rows),average=sum(row['rating'] for row in rows)/len(rows) if rows else 0,distribution={str(i):sum(row['rating']==i for row in rows) for i in range(1,6)})
+   return self.reply(dict(summary=summary,reviews=rows[(page-1)*10:page*10],mine=next((row for row in rows if row['isMine']),None),page=page,pageSize=10,canReview=review_allowed,eligibilityMessage='' if review_allowed else 'A paid purchase is required.'))
   if path=='/api/wishlist':return self.reply(list(saved))
   if path=='/api/my/orders':return self.reply(dict(orders=[dict(id='qa_order',items=[dict(name=products[0]['name'],quantity=1)],total_cents=7900,currency='USD',status='processing',payment_status='paid',tracking='',seller_name='QA Store',created_at='2026-11-01T00:00:00Z')],total=1))
   if path=='/api/notifications':return self.reply([dict(title='QA announcement',body='Isolated notification check',created_at='2026-11-01T00:00:00Z')])
@@ -39,6 +51,19 @@ class Handler(SimpleHTTPRequestHandler):
    (saved.add if body['saved'] else saved.discard)(body['productId']);return self.reply(list(saved))
   if self.path=='/api/cart':cart.clear();cart.update(body['items']);return self.reply(dict(items=cart))
   self.send_error(404)
+
+ def review_write(self,method):
+  if self.path!='/api/reviews':return self.send_error(404)
+  body=json.loads(self.rfile.read(int(self.headers['Content-Length'])));review_calls.append(method)
+  if review_fail_save:
+   self.send_response(503);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(b'{"error":"Review save temporarily unavailable"}');return
+  key=body.get('id') or 'qa_review'
+  if method=='DELETE':review_rows.pop(key,None);return self.reply(dict(deleted=True))
+  now=datetime.now(timezone.utc).isoformat();row=dict(id=key,productId=body['productId'],rating=body['rating'],title=body['title'],body=body['body'],name='QA Buyer',isMine=True,verifiedPurchase=True,createdAt=review_rows.get(key,{}).get('createdAt',now),updatedAt=now)
+  review_rows[key]=row;return self.reply(row)
+ def do_POST(self):return self.review_write('POST')
+ def do_PATCH(self):return self.review_write('PATCH')
+ def do_DELETE(self):return self.review_write('DELETE')
 
 server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
 threading.Thread(target=server.serve_forever,daemon=True).start()
@@ -98,7 +123,7 @@ try:
   call('Emulation.setTouchEmulationEnabled',dict(enabled=width<640))
   for slide in range(4):
    js(f"document.querySelectorAll('#hero-dots button')[{slide}].click()")
-   time.sleep(.45)
+   js("Promise.all(document.querySelector('#hero-product-image').getAnimations().map(animation=>animation.finished))")
    layout=js("""(()=>{
     const rect=selector=>{const r=document.querySelector(selector).getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,center:(r.left+r.right)/2};};
     return {hero:rect('#tech-hero'),image:rect('#hero-product-image'),caption:rect('.hero-product-caption'),price:rect('#hero-product-price'),controls:rect('.hero-carousel-controls')};
@@ -154,6 +179,48 @@ try:
  visit('search.html?min=1&currency=USD');assert not js("document.querySelector('#filter-error').hidden")
  visit('cart.html');assert js("document.querySelector('#cart-count').textContent")=='1'
  visit('product.html?id=qa_0');assert js("document.querySelector('#product-title').textContent")==products[0]['name']
+ js('window.reviewsReady')
+ assert not js("document.querySelector('#reviews-empty').hidden")
+ assert not js("document.querySelector('#review-form').hidden")
+ js("document.querySelectorAll('[name=rating]')[4].click();document.querySelector('#review-title').value='<img src=x onerror=alert(1)>';document.querySelector('#review-body').value='A detailed experience with this product.';document.querySelector('#review-form').requestSubmit();document.querySelector('#review-form').requestSubmit()")
+ wait("document.querySelector('#reviews-total').textContent==='1 review'")
+ assert review_calls.count('POST')==1,'Double submission must be ignored while saving'
+ assert js("document.querySelector('#reviews-average').textContent")=='5.0'
+ assert js("document.querySelector('.product-review h3').textContent")=='<img src=x onerror=alert(1)>'
+ assert js("document.querySelectorAll('.product-review img').length")==0,'Review content must render as text'
+ assert js("document.querySelector('.review-verified').textContent").endswith('Verified Purchase')
+ visit('product.html?id=qa_0');js('window.reviewsReady')
+ assert not js("document.querySelector('#review-own').hidden"),'Saved review persists on reload'
+ js("document.querySelector('#review-edit').click();document.querySelectorAll('[name=rating]')[2].click();document.querySelector('#review-title').value='Changed my opinion'")
+ review_fail_save=True;js("document.querySelector('#review-form').requestSubmit()")
+ wait("document.querySelector('#reviews-error').textContent.includes('temporarily unavailable')")
+ assert js("document.querySelector('#review-title').value")=='Changed my opinion','Failed save preserves the draft'
+ review_fail_save=False;js("document.querySelector('#review-form').requestSubmit()")
+ wait("document.querySelector('#reviews-average').textContent==='3.0'")
+ js("document.querySelector('#review-delete').click();document.querySelector('#review-delete-cancel').click()")
+ assert len(review_rows)==1,'Cancelling deletion preserves the review'
+ js("document.querySelector('#review-delete').click();document.querySelector('#review-delete-confirm').click()")
+ wait("document.querySelector('#reviews-total').textContent==='0 reviews'")
+ assert not review_rows
+ review_allowed=False;visit('product.html?id=qa_0');js('window.reviewsReady')
+ assert js("document.querySelector('#review-form').hidden")
+ assert 'paid purchase' in js("document.querySelector('#review-eligibility').textContent")
+ for i in range(11):review_rows[str(i)]=dict(id=str(i),productId='qa_0',rating=(i%5)+1,title='Isolated review '+str(i),body='A long and honest review. '*15,name='Test purchaser',isMine=False,verifiedPurchase=True,createdAt=f'2026-10-{i+1:02}T00:00:00Z',updatedAt=f'2026-10-{i+1:02}T00:00:00Z')
+ review_allowed=True;visit('product.html?id=qa_0');js('window.reviewsReady')
+ assert js("document.querySelectorAll('.product-review').length")==10
+ js("document.querySelector('#reviews-next').click()")
+ wait("document.querySelector('#reviews-page').textContent==='Page 2 of 2'")
+ assert js("document.querySelectorAll('.product-review').length")==1
+ for mode,expected in [('highest','5 out of 5 stars'),('lowest','1 out of 5 stars')]:
+  js("document.querySelector('#review-sort').value="+json.dumps(mode)+";document.querySelector('#review-sort').dispatchEvent(new Event('change'))")
+  wait("!document.querySelector('#review-sort').disabled")
+  assert js("document.querySelector('.product-review .review-stars').getAttribute('aria-label')")==expected
+ for width in [1440,768,390,320]:
+  call('Emulation.setDeviceMetricsOverride',dict(width=width,height=1050,deviceScaleFactor=1,mobile=width<640))
+  js("document.querySelector('#product-reviews').scrollIntoView({behavior:'instant',block:'start'})");time.sleep(.2)
+  assert js('document.documentElement.scrollWidth<=innerWidth'),f'Reviews overflow at {width}'
+  if width in [1440,390]:shot(f'reviews-{width}.png')
+ print('PASS: review submission/edit/delete, reload persistence, duplicate-click prevention, failed-save draft retention, safe text rendering, purchase eligibility, sorting, pagination and responsive review UI.')
  assert not errors,errors
  print('PASS: real Chrome storefront, four responsive widths without page overflow, themes, suggestions, quick view, wishlist persistence/failure recovery, cart, notifications, orders, categories, deals and product links. No browser exceptions. Isolated fixtures only.')
 finally:

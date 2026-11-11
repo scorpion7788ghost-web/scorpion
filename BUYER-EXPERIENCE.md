@@ -26,7 +26,21 @@ Original prices and discount badges are displayed only when the real catalog con
 - Recommendations rank the actual catalog by recently viewed categories on this browser. History contains only product IDs, is limited to 40 items and is isolated by account. It falls back to catalog order when no history is available.
 - Category shortcuts infer technology collections from product names and existing categories without rewriting the database taxonomy.
 
-## Verification
+## Product reviews
+
+Run the full [supabase/product-reviews.sql](supabase/product-reviews.sql) after `admin-console.sql` to enable product ratings and reviews. The migration is rerunnable, preserves existing records, and inserts no reviews. Every current and future product uses the same product details page and review endpoints.
+
+Reviews require a signed-in Buyer (including an Admin using Buyer access) and a matching paid, non-cancelled order in `lk_orders`. The order must belong to that account and the product's seller, and contain a positive integer `quantity` plus the exact product ID in `productId`, `product_id`, or `id`. Name-only items cannot establish ownership. Fully refunded orders do not qualify. Checkout remains unchanged; eligible orders must come from the existing trusted order ingestion process.
+
+The server adds the Verified Purchase label when creating a review. Customers can subsequently edit or delete their own review, including after a refund. A product/customer unique constraint prevents duplicates. Owners cannot review their own products. Titles accept 1–100 characters; descriptions accept 1–3000; whitespace-only content and ratings outside 1–5 are rejected. Content is rendered as plain text.
+
+The review table uses default-deny RLS with direct browser table access revoked. Authenticated RPCs validate active accounts, visible products, purchase eligibility and review ownership. Writes never accept a customer ID or verification flag. Updates/deletes require the last observed update timestamp, preventing stale tabs from silently changing a newer review. Reviewer responses contain display names and dates, not emails or authentication IDs. Deleted products/accounts cascade only to their corresponding reviews.
+
+The interface includes averages and rating distributions over all reviews, four server-side sorting options, ten reviews per page, edit/delete controls, confirmation dialogs and retryable errors. Reviews do not delay the product, cart or hero scripts.
+
+Run `tests/product-reviews-database.test.cjs` for isolated PostgreSQL validation of purchase checks, ownership, RLS, duplicate prevention, persistence, editing/deletion, aggregates, sorting and pagination. The browser test below additionally exercises the review form and responsive layouts using localhost fixtures.
+
+## Verification commands
 
 Use Node.js to run `tests/marketplace.test.cjs`, `tests/buyer-experience-database.test.cjs`, `tests/supabase-store.test.cjs`, `tests/profile-theme.test.cjs`, `tests/search-navigation.test.cjs`, and `tests/storefront-flows.test.cjs`. The database test uses the existing isolated PGlite setup; no live accounts are required.
 

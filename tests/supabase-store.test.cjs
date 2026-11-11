@@ -64,6 +64,15 @@ async function main(){
  assert(buyerRoutes.calls[3].url.endsWith('/rpc/lk_my_orders'));
  assert.deepEqual(JSON.parse(buyerRoutes.calls[3].options.body),{page_number:2});
  assert(buyerRoutes.calls.every(call=>call.options.headers.Authorization==='Bearer verified-access'));
+ await buyerRoutes.cloud.request('/reviews?product=product_abc&sort=highest&page=2');
+ await buyerRoutes.cloud.request('/reviews','POST',{productId:'product_abc',rating:5,title:'Title',body:'Description'});
+ await buyerRoutes.cloud.request('/reviews','PATCH',{productId:'product_abc',id:'review-id',rating:4,title:'Changed',body:'Changed body',updatedAt:'2026-11-10T00:00:00Z'});
+ await buyerRoutes.cloud.request('/reviews','DELETE',{productId:'product_abc',id:'review-id',updatedAt:'2026-11-10T00:00:00Z'});
+ assert(buyerRoutes.calls[4].url.endsWith('/rpc/lk_product_review_list'));
+ assert.deepEqual(JSON.parse(buyerRoutes.calls[4].options.body),{product_key:'product_abc',sort_order:'highest',page_number:2});
+ assert.equal(JSON.parse(buyerRoutes.calls[5].options.body).operation,'create');
+ assert.equal(JSON.parse(buyerRoutes.calls[6].options.body).expected_updated_at,'2026-11-10T00:00:00Z');
+ assert.equal(JSON.parse(buyerRoutes.calls[7].options.body).operation,'delete');
  const brandMissing=app({role:'seller',storage,handler:()=>({status:404,body:{code:'PGRST202',message:'Function not found'}})});
  assert.equal((await brandMissing.cloud.request('/catalog/fields')).brand,false);
  const brandFailure=app({role:'seller',storage,handler:()=>({status:503,body:{message:'Storage unavailable'}})});
