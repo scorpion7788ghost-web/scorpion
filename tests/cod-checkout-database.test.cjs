@@ -75,6 +75,7 @@ const {PGlite}=require('../.qa/pglite/package/dist/index.cjs');
   const multiReceipt=await place(buyer,multi);assert.equal(multiReceipt.orders.length,2);assert.equal(multiReceipt.orders.reduce((sum,o)=>sum+o.total_cents,0),multiReceipt.total_cents);assert(multiReceipt.orders.every(o=>o.delivery_fee_cents===700));
   assert.equal((await run(owner,'lk_admin_console',['order-detail',{id:multiReceipt.orders[0].id}])).delivery.mobile,delivery.mobile);
   assert.equal((await run(buyer,'lk_checkout_resume',[multi.id])).placed,true);
+  await cart(owner,{[second.id]:1});const ownerQuote=await quote(owner);assert.equal((await place(owner,ownerQuote)).orders[0].status,'pending','Owner retains full Buyer checkout access');
   await assert.rejects(run(other,'lk_checkout_resume',[multi.id]));
   await cart(buyer,{[p.id]:1});const expired=await quote(buyer);await db.query("update lk_checkouts set expires_at=now()-interval '1 minute' where id=$1",[expired.id]);await assert.rejects(place(buyer,expired),/expired/);
   const changed=await quote(buyer);await cart(buyer,{[p.id]:2});await assert.rejects(place(buyer,changed),/changed/);

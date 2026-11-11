@@ -86,7 +86,6 @@ begin
   quantity:=entry.value::integer;
   select * into p from public.lk_products where id=entry.key for update;
   if not found or p.status<>'active' or p.moderation<>'approved' or not public.lk_catalog_owner_is_approved(p.owner_id) then raise exception 'An item is no longer available. Return to your cart.'; end if;
-  if p.owner_id=account_id then raise exception 'You cannot purchase products from your own store.'; end if;
   if coalesce(p.data->>'stock','') !~ '^[0-9]{1,5}$' or (p.data->>'stock')::integer<quantity then raise exception 'Not enough stock for %. Return to your cart.',p.data->>'name'; end if;
   if coalesce(p.data->>'price','') !~ '^[0-9]{1,6}(\.[0-9]{1,2})?$' or (p.data->>'price')::numeric<=0 then raise exception 'An item price is unavailable. Contact support.'; end if;
   unit:=round((p.data->>'price')::numeric*100)::bigint; subtotal:=subtotal+unit*quantity;
