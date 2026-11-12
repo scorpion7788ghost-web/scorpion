@@ -19,6 +19,15 @@ async function main(){
  vm.runInNewContext(fs.readFileSync('assets/shop.js','utf8'),context);
  const shop=context.window.Shop,items=[{id:'laptop',name:'Pro Laptop',category:'Tech',price:100},{id:'audio',name:'Studio Headphones',category:'Audio',price:80},{id:'speaker',name:'Speaker',category:'Audio',price:20}];context.window.products=items;
  assert(shop.matchesCollection(items[0],'Laptops'));assert(!shop.matchesCollection(items[0],'Mobiles'));
+ for(const [category,name,collection] of [[' laptop ','Gaming Laptop','Laptops'],['mobile','Phone','Mobiles'],['pc-gaming','Desktop','PC & Gaming'],['accessory','Phone case','Accessories'],['monitor','Gaming Monitor','Monitors'],['computer-components','RAM','Components'],['smart-watches','Watch','Smartwatch'],['audio','Headphones','Audio']]){
+  const product={category,name};assert(shop.matchesCollection(product,collection));assert(shop.matchesCollection(product,'All'));
+  for(const other of shop.collections.filter(c=>!['All',collection].includes(c)))assert(!shop.matchesCollection(product,other),`${category} must not leak into ${other}`);
+ }
+ for(const [name,expected] of [['Wireless Headphones','Audio'],['Gaming Laptop','Laptops'],['Phone Case','Accessories'],['Laptop Stand','Accessories'],['Gaming Monitor','Monitors'],['Graphics GPU','Components'],['Smart Watch','Smartwatch'],['Gaming Keyboard','PC & Gaming'],['Smartphone','Mobiles']]){
+  for(const category of shop.collections.filter(c=>c!=='All'))assert.equal(shop.matchesCollection({name,category:'Tech'},category),category===expected,name+' / '+category);
+ }
+ assert(shop.matchesCollection({name:'Camera',category:' Cameras '},'cameras'));
+ assert(!shop.matchesCollection({name:'Laptop camera',category:'Cameras'},'Laptops'),'Explicit custom categories override keyword guesses');
  assert.equal(shop.offer(items[0]),null,'Never invent an original price');assert.equal(shop.offer({...items[0],originalPrice:125}).percent,20);assert.equal(shop.offer({...items[0],originalPrice:90}),null);
  shop.recordView(items[1]);assert.equal(shop.recommend(items)[0].id,'audio');assert.equal(items[0].id,'laptop','Do not mutate catalog order');
  user.id='buyer_b';assert.equal(shop.recommend(items)[0].id,'laptop','History must not leak between accounts on a shared browser');

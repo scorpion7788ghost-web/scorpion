@@ -73,6 +73,9 @@ function createCard(product,isNew=false){
 
 function renderRecommendations(){
   const filtered=findProducts('',selectedCategory),matches=window.Shop?.recommend(filtered)||filtered,shelf=$('#recommended-products');
+  const newest=$('#new-products'),newMatches=filtered.filter(product=>product.isNew);
+  shelfScrollers.get(newest)?.stop();newest.replaceChildren(...newMatches.map(product=>createCard(product,true)));newest.scrollLeft=0;
+  $('#new-products-empty').hidden=newMatches.length>0;updateArrows(newest);
   shelfScrollers.get(shelf)?.stop();
   shelf.replaceChildren(...matches.map(product=>createCard(product)));
   shelf.scrollLeft=0;shelf.hidden=matches.length===0;
@@ -83,10 +86,22 @@ function renderRecommendations(){
   updateArrows(shelf);
 }
 function initializeHome(){
-  $('#new-products').replaceChildren(...products.filter(product=>product.isNew).map(product=>createCard(product,true)));
-  $$('[data-category]').forEach(button=>button.addEventListener('click',()=>{selectedCategory=button.dataset.category;$$('[data-category]').forEach(item=>{const active=item===button;item.classList.toggle('active',active);item.setAttribute('aria-pressed',String(active));});renderRecommendations();}));
+  const notice=element('p','notice-text','No newly added products in this category yet.');notice.id='new-products-empty';$('#new-products').after(notice);
+  const more=$('#more-categories'),categories=new Map();
+  for(const category of [...(Store.state.categories||[]),...products.map(p=>p.category)]){
+    if(typeof category!=='string'||!category.trim()||window.Shop?.collectionFor(category))continue;
+    const key=window.Shop?.categoryKey(category)||category;if(!categories.has(key))categories.set(key,category.trim());
+  }
+  if(more){more.replaceChildren(...[...categories.values()].sort((a,b)=>a.localeCompare(b)).map(category=>{const button=element('button','',category);button.type='button';button.dataset.category=category;button.setAttribute('aria-pressed','false');return button;}));if(!more.children.length)more.append(element('span','','No additional categories yet.'));}
+  $('.category-section').addEventListener('click',event=>{const button=event.target.closest('button[data-category]');if(!button)return;
+    selectedCategory=button.dataset.category;
+    $$('[data-category]').forEach(item=>{const active=item.dataset.category===selectedCategory;item.classList.toggle('active',active);item.setAttribute('aria-pressed',String(active));});
+    const extra=Boolean(button.closest('#more-categories')),summary=$('.category-more summary');summary?.classList.toggle('active',extra);
+    if(summary){summary.querySelector('span').textContent=extra?selectedCategory:'More';summary.setAttribute('aria-label',extra?'More categories, selected '+selectedCategory:'More categories');}
+    const dropdown=$('.category-more');if(dropdown)dropdown.open=false;
+    if(extra)summary.focus();renderRecommendations();
+  });
   $('#reset-search').addEventListener('click',()=>{$('[data-category="All"]').click();});
-  if(!products.some(p=>p.isNew)){const empty=element('p','notice-text','No newly added products yet. New listings will appear here.');$('#new-products').after(empty);}
   renderRecommendations();
 }
 function initializeProduct(){

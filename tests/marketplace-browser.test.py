@@ -45,7 +45,7 @@ class Handler(SimpleHTTPRequestHandler):
    return self.reply(dict(user=dict(id='qa_seller',username='qa_seller',name='QA Seller',role='seller',verificationStatus='approved'),products=products,stores=[shop],sellerStore=shop,cart={},orders=[]))
   if path=='/api/seller/orders':
    return self.reply(dict(orders=[dict(**order,customer_name=receipt['delivery']['name'],currency='USD',delivery=receipt['delivery']) for receipt in checkout_orders.values() for order in receipt['orders']],total=len(checkout_orders)))
-  if path=='/api/bootstrap':return self.reply(dict(user=dict(id='qa_buyer',name='Browser QA',role='customer'),products=products,stores=[dict(profile=dict(id='qa_seller',name='Isolated QA Store'))],cart=cart,orders=[]))
+  if path=='/api/bootstrap':return self.reply(dict(categories=['Tech','Cameras','Office'],user=dict(id='qa_buyer',name='Browser QA',role='customer'),products=products,stores=[dict(profile=dict(id='qa_seller',name='Isolated QA Store'))],cart=cart,orders=[]))
   if path=='/api/reviews':
    query=parse_qs(urlsplit(self.path).query);key=query['product'][0];page=int(query.get('page',['1'])[0]);sort=query.get('sort',['newest'])[0]
    rows=[row for row in review_rows.values() if row['productId']==key]
@@ -354,6 +354,70 @@ try:
  wait("document.querySelector('#dashboard-stats').lastElementChild.querySelector('strong').textContent==='1'")
  assert not errors,errors
  print('PASS: real Chrome storefront, four responsive widths without page overflow, themes, suggestions, quick view, wishlist persistence/failure recovery, cart, notifications, orders, categories, deals and product links. No browser exceptions. Isolated fixtures only.')
+ # Replace only isolated QA fixtures, never production records.
+ products[:]=[dict(id='case_'+str(i),sellerId='qa_seller',name=name,category=category,price=20+i,stock=5,color='#19141f',isNew=True,isCustom=True,status='active',summary='Local QA only',description='Local QA only',image='assets/products/placeholder.svg',brand='QA') for i,(name,category) in enumerate([
+  ('Gaming Laptop (Sample)','laptop'),('Smartphone','mobile'),('Desktop','pc-gaming'),('Phone case','accessory'),('Gaming Monitor','monitor'),('Graphics card','computer-components'),('Smart Watch','smart-watches'),('Wireless Headphones','audio'),('Studio Camera','Cameras'),('Headphones legacy','Tech')])]
+ # Tiny image fixtures cover portrait and landscape assets without external requests.
+ import struct,zlib
+ def fixture_image(width,height):
+  def chunk(kind,data):return struct.pack('!I',len(data))+kind+data+struct.pack('!I',zlib.crc32(kind+data))
+  png=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('!2I5B',width,height,8,2,0,0,0))+chunk(b'IDAT',zlib.compress((b'\0'+b'\x68\xcc\xee'*width)*height))+chunk(b'IEND',b'')
+  return 'data:image/png;base64,'+base64.b64encode(png).decode()
+ for i,product in enumerate(products):product['image']=fixture_image(100 if i%2 else 240,240 if i%2 else 100)
+ products[3]['name']='Premium Phone Case with Magnetic Charging and Adjustable Travel Stand (Sample)'
+ visit('index.html');wait("document.querySelectorAll('#recommended-products .product-card').length===10")
+ start_url=js('location.href')
+ def click_category(category):
+  js("document.querySelector('[data-category='+CSS.escape("+json.dumps(category)+")+']').click()")
+ def ids(shelf):return js("[...document.querySelectorAll('#"+shelf+" .product-open')].map(a=>new URL(a.href).searchParams.get('id'))")
+ for repeat in range(2):
+  for index,category in enumerate(['Laptops','Mobiles','PC & Gaming','Accessories','Monitors','Components','Smartwatch','Audio']):
+   click_category(category)
+   expected=['case_'+str(index)]+(['case_9'] if category=='Audio' else [])
+   assert sorted(ids('recommended-products'))==sorted(expected),(category,ids('recommended-products'))
+   assert sorted(ids('new-products'))==sorted(expected)
+   assert js("document.querySelector('.category-tile.active').dataset.category")==category
+  click_category('All');assert len(ids('recommended-products'))==10 and len(ids('new-products'))==10
+ assert js("[...document.querySelectorAll('#more-categories button')].map(b=>b.textContent)")==['Cameras','Office','Tech']
+ js("document.querySelector('.category-more').open=true")
+ click_category('Cameras');assert ids('recommended-products')==['case_8'];assert js("document.querySelector('.category-more summary').classList.contains('active')")
+ click_category('Office');assert not ids('recommended-products');assert not js("document.querySelector('#empty-state').hidden")
+ click_category('All');assert len(ids('recommended-products'))==10
+ assert js('location.href')==start_url,'Filtering must not navigate'
+ # Real browser pointer hit testing for the mobile More dropdown, outside the scroll rail.
+ call('Emulation.setDeviceMetricsOverride',dict(width=390,height=950,deviceScaleFactor=1,mobile=True))
+ js("document.querySelector('.category-more summary').scrollIntoView({block:'center',inline:'end',behavior:'instant'});document.querySelector('.category-more').open=true")
+ box=js("(()=>{const r=document.querySelector('#more-categories button').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()")
+ call('Input.dispatchMouseEvent',dict(type='mousePressed',button='left',clickCount=1,**box));call('Input.dispatchMouseEvent',dict(type='mouseReleased',button='left',clickCount=1,**box))
+ assert ids('recommended-products')==['case_8'],'More must be clickable on mobile'
+ click_category('All')
+ # Pause remains paused across manual navigation; Play resumes even with focus on the button.
+ js("document.querySelector('#hero-pause').click()")
+ assert js("document.querySelector('#hero-pause').getAttribute('aria-pressed')")=='true'
+ for width in [1440,1024,768,390,320]:
+  call('Emulation.setDeviceMetricsOverride',dict(width=width,height=1000,deviceScaleFactor=1,mobile=width<640))
+  js("document.querySelector('#tech-hero').scrollIntoView({block:'start',behavior:'instant'})")
+  for slide in range(4):
+   js("document.querySelectorAll('#hero-dots button')["+str(slide)+"].click()")
+   time.sleep(.35)
+   assert js("document.querySelector('#hero-product-image').naturalWidth>0 && getComputedStyle(document.querySelector('#hero-product-image')).objectFit==='contain'")
+   assert js("document.querySelector('#hero-product-link').getAttribute('href')")=='product.html?id=case_'+str(slide)
+   assert '(Sample)' not in js("document.querySelector('#hero-product-name').textContent")
+   geometry=js("""(()=>{const r=s=>document.querySelector(s).getBoundingClientRect(),hero=r('#tech-hero'),image=r('#hero-product-image'),caption=r('.hero-product-caption'),controls=r('.hero-carousel-controls'),dots=r('#hero-dots');return {noOverlap:image.bottom<=caption.top,contained:caption.bottom<=controls.top&&controls.bottom<=hero.bottom,centered:Math.abs((controls.left+controls.right)-(hero.left+hero.right))<3,group:Math.abs((caption.left+caption.right)-(image.left+image.right))<3,dotsCentered:Math.abs((dots.left+dots.right)-(hero.left+hero.right))<3,inside:controls.left>=hero.left&&controls.right<=hero.right,page:document.documentElement.scrollWidth<=innerWidth}})()""")
+   assert all(geometry.values()),(width,slide,geometry)
+  if width in [1440,390]:shot(f'hero-category-{width}.png')
+ selected=js("document.querySelector('#hero-product-link').href");time.sleep(6.8)
+ assert js("document.querySelector('#hero-product-link').href")==selected,'Pause must stop timers'
+ js("document.querySelector('#hero-pause').focus();document.querySelector('#hero-pause').click()")
+ time.sleep(6.8)
+ assert js("document.querySelector('#hero-product-link').href")!=selected,'Play must resume while focused'
+ js("document.querySelectorAll('#hero-dots button')[1].click();document.querySelectorAll('#hero-dots button')[2].click();document.querySelectorAll('#hero-dots button')[0].click()")
+ assert js("document.querySelector('#hero-product-image').getAnimations().length")<=1,'Rapid clicks must cancel previous animation'
+ assert js("document.querySelectorAll('#hero-dots button[aria-pressed=true]').length")==1
+ time.sleep(6.8)
+ assert js("document.querySelector('#hero-product-link').getAttribute('href')")=='product.html?id=case_1','Manual navigation restarts one timer'
+ assert not errors,errors
+ print('PASS: all category filters, both shelves, repeated switching, All reset, dynamic More including empty categories, mobile click hit testing; all four hero slides at five widths, no overlap/clipping, pause/play with focus, rapid navigation and timer restart. Local data only.')
 finally:
  if ws:ws.close()
  browser.terminate();server.shutdown()
