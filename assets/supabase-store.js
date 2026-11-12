@@ -37,6 +37,7 @@
     if(['/rest/v1/rpc/lk_directory','/rest/v1/rpc/lk_admin_update_account','/rest/v1/rpc/lk_chat_messages','/rest/v1/rpc/lk_chat_send','/rest/v1/rpc/lk_chat_inbox'].includes(path)&&result.code==='PGRST202')message='The new community tools need activation. The store owner must run community-tools.sql in Supabase.';
     if(['/rest/v1/rpc/lk_admin_console','/rest/v1/rpc/lk_admin_command','/rest/v1/rpc/lk_notifications'].includes(path)&&result.code==='PGRST202')message='The Admin Console database upgrade is not activated. Run supabase/admin-console.sql in Supabase SQL Editor.';
     if(path==='/rest/v1/rpc/lk_access_status'&&result.code==='PGRST202')message='Owner protection needs activation. Run owner-access.sql in Supabase.';
+    if(path==='/rest/v1/rpc/lk_seller_cod_manage'&&result.code==='PGRST202')message='Seller order updates need activation. Ask the Owner to run the updated supabase/cod-checkout.sql in Supabase SQL Editor.';
     if(path==='/rest/v1/rpc/lk_is_admin'&&result.code==='PGRST202')message='Administrator setup is incomplete. Apply the admin-access.sql upgrade in Supabase.';
     if(['/rest/v1/rpc/lk_registration_status','/rest/v1/rpc/lk_staff_status','/rest/v1/rpc/lk_seller_reviews','/rest/v1/rpc/lk_approve_seller'].includes(path)&&result.code==='PGRST202')message='Registration and seller verification are not ready yet. The store owner needs to apply worker-verification.sql in Supabase.';
     if(response.status===429)message='Too many requests. Please wait and try again.';
@@ -134,6 +135,7 @@
   if(path.startsWith('/checkout/resume?')&&method==='GET')return rpc('lk_checkout_resume',{checkout_key:new URLSearchParams(path.split('?')[1]).get('id')});
   if(path==='/admin/delivery'&&method==='POST')return rpc('lk_delivery_config',{operation:data.operation||'list',input:data.input||{}});
   if(path==='/admin/cod-order'&&method==='POST')return rpc('lk_cod_manage',{input:data});
+  if(path==='/seller/cod-order'&&method==='POST')return rpc('lk_seller_cod_manage',{input:data});
   if(path.startsWith('/seller/orders?')&&method==='GET')return rpc('lk_seller_orders',{page_number:Number(new URLSearchParams(path.split('?')[1]).get('page')||1)});
   if(path.startsWith('/reviews?')&&method==='GET'){const p=new URLSearchParams(path.split('?')[1]);return rpc('lk_product_review_list',{product_key:p.get('product'),sort_order:p.get('sort')||'newest',page_number:Number(p.get('page')||1)});}
   if(path==='/reviews'&&['POST','PATCH','DELETE'].includes(method))return rpc('lk_product_review_write',{operation:{POST:'create',PATCH:'update',DELETE:'delete'}[method],product_key:data.productId,review_id:data.id||null,review_rating:data.rating??null,review_title:data.title??null,review_body:data.body??null,expected_updated_at:data.updatedAt||null});

@@ -48,6 +48,13 @@ async function main(){
  await seller.cloud.request('/seller/products/product_abc','PUT',{name:'Saved'});
  assert.equal(JSON.parse(writes[0].options.body).product_id,'product_abc');assert.equal(writes[0].options.headers.Authorization,'Bearer verified-access');
  await seller.cloud.request('/seller/draft?key=new','DELETE',{});assert.equal(JSON.parse(writes[1].options.body).input,null);
+ const updateOrder={id:'own-order',expected:'pending',expectedPayment:'unpaid',status:'processing',collected:false,tracking:'SHIP-1'};
+ await seller.cloud.request('/seller/cod-order','POST',updateOrder);
+ assert(writes.at(-1).url.endsWith('/rpc/lk_seller_cod_manage'));
+ assert.deepEqual(JSON.parse(writes.at(-1).options.body),{input:updateOrder});
+ assert.equal(writes.at(-1).options.headers.Authorization,'Bearer verified-access');
+ const sellerUpgrade=app({role:'seller',storage,handler:()=>({status:404,body:{code:'PGRST202'}})});
+ await assert.rejects(sellerUpgrade.cloud.request('/seller/cod-order','POST',updateOrder),/updated supabase\/cod-checkout.sql/);
  const customer=app({role:'customer',storage,handler:server});assert.equal((await customer.cloud.request('/bootstrap')).user,null,'Customer portal must not inherit seller session');
  const fresh=app({role:'seller',storage,handler:server});assert.equal((await fresh.cloud.request('/bootstrap')).user.id,'seller_owned','Sign-in session persists across page loads');
  const brandReady=app({role:'seller',storage,handler:()=>({body:{brand:true,version:1}})});

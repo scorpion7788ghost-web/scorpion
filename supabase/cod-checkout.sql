@@ -187,14 +187,16 @@ begin
   from public.lk_orders o left join public.lk_checkouts c on c.id=o.checkout_id where o.seller_id=account.auth_id order by o.created_at desc,o.id limit 20 offset (page_number-1)*20) o;
  return jsonb_build_object('orders',result,'page',page_number,'total',(select count(*) from public.lk_orders where seller_id=account.auth_id));
 end $$;
--- COD fulfillment and cash collection are Admin-only; sellers can read their own delivery details.
-create or replace function public.lk_cod_manage(input jsonb) returns jsonb language plpgsql security definer set search_path='' as $$
-declare ord public.lk_orders; desired text; line jsonb; reason text;
+-- Shared mutation rules; seller requests are scoped before locking an order.
+create or replace function lk_private.cod_manage(input jsonb, seller_only boolean) returns jsonb language plpgsql security definer set search_path='' as $$
+declare ord public.lk_orders; desired text; line jsonb; reason text; account public.lk_profiles;
 begin
- perform lk_private.console_require_admin();
- select * into ord from public.lk_orders where id=input->>'id' and payment_method='cod' for update;
+ if seller_only then account:=lk_private.me('seller'); else perform lk_private.console_require_admin(); end if;
+ select * into ord from public.lk_orders where id=input->>'id' and payment_method='cod'
+  and (not seller_only or seller_id=account.auth_id) for update;
  if not found then raise exception 'COD order not found.'; end if;
  desired:=input->>'status';reason:=lk_private.text(input->'reason',1000);
+ if seller_only and (ord.status='cancelled' or desired='cancelled') then raise exception 'Contact an Admin for cancellations.'; end if;
  if input->>'expected' is distinct from ord.status or input->>'expectedPayment' is distinct from ord.payment_status then raise exception 'Order changed. Refresh before updating.'; end if;
  if desired is null or not (desired=ord.status or (ord.status='pending' and desired in ('processing','cancelled')) or (ord.status='processing' and desired in ('shipped','cancelled')) or (ord.status='shipped' and desired='delivered')) then raise exception 'This order status transition is not allowed.'; end if;
  if jsonb_typeof(input->'collected') is distinct from 'boolean' then raise exception 'Confirm the cash collection status.'; end if;
@@ -209,6 +211,15 @@ begin
  perform lk_private.console_event('cod-order-updated',ord.id,jsonb_build_object('status',desired,'collected',input->'collected','reason',reason));
  return '{"ok":true}';
 end $$;
+revoke all on function lk_private.cod_manage(jsonb,boolean) from public,anon,authenticated,service_role;
+create or replace function public.lk_cod_manage(input jsonb) returns jsonb language sql security definer set search_path='' as $$
+ select lk_private.cod_manage(input,false);
+$$;
+create or replace function public.lk_seller_cod_manage(input jsonb) returns jsonb language sql security definer set search_path='' as $$
+ select lk_private.cod_manage(input,true);
+$$;
+revoke all on function public.lk_seller_cod_manage(jsonb) from public,anon,authenticated;
+grant execute on function public.lk_seller_cod_manage(jsonb) to authenticated;
 -- Add private shipping details only to the already Admin-guarded order detail RPC.
 do $$ begin
  if to_regprocedure('lk_private.admin_console_before_cod(text,jsonb)') is null then

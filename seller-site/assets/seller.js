@@ -37,9 +37,43 @@ async function orders(page=1){
  try{const result=await Store.request('/seller/orders?page='+page);empty.hidden=result.orders.length>0;empty.textContent='No orders for your store yet.';
  for(const order of result.orders){const row=el('tr'),items=el('td');for(const item of order.items)items.append(el('p','',`${item.name||'Product'} x ${item.quantity}`));
  if(order.delivery){const d=order.delivery;for(const value of [d.name,d.mobile,d.email,d.address,d.city,d.district,d.postalCode,d.instructions])if(value)items.append(el('p','',value));}
- row.append(el('td','',order.id),el('td','',order.customer_name),items,el('td','',money(order.total_cents/100)),el('td','',order.status+' - '+order.payment_status+(order.payment_method==='cod'?' - COD':'')));rows.append(row);}
+ const actions=el('td','table-actions');
+ if(order.payment_method==='cod'&&order.status!=='cancelled'){const update=el('button','','Manage order');update.addEventListener('click',()=>manageOrder(order,page));actions.append(update);}
+ else actions.append(el('span','',order.status==='cancelled'?'Cancelled':'Contact an Admin'));
+ row.append(el('td','',order.id),el('td','',order.customer_name),items,el('td','',money(order.total_cents/100)),el('td','',order.status+' - '+order.payment_status+(order.payment_method==='cod'?' - COD':'')),actions);rows.append(row);}
  for(const [label,next,disabled] of [['Previous',page-1,page<=1],['Next',page+1,page*20>=result.total]]){const button=el('button','',label);button.disabled=disabled;button.addEventListener('click',()=>orders(next));pager.append(button);}
  }catch(error){empty.textContent=error.message;const retry=el('button','','Try again');retry.addEventListener('click',()=>orders(page));pager.append(retry);}
+}
+function manageOrder(order,page){
+ const dialog=el('dialog','seller-order-dialog'),form=el('form');let busy=false;
+ dialog.setAttribute('aria-labelledby','seller-order-heading');
+ const heading=el('h2','','Manage order');heading.id='seller-order-heading';
+ form.append(heading,el('p','seller-order-reference',order.id),el('p','',`Cash on Delivery · ${money(order.total_cents/100)} · ${order.payment_status}`));
+ function field(labelText,input){const wrap=el('div','auth-field'),label=el('label','',labelText);input.id='seller-order-'+input.name;label.htmlFor=input.id;wrap.append(label,input);form.append(wrap);return input;}
+ const status=el('select');status.name='status';
+ for(const value of [order.status,{pending:'processing',processing:'shipped',shipped:'delivered'}[order.status]].filter(Boolean)){const option=el('option','',value[0].toUpperCase()+value.slice(1));option.value=value;status.append(option);}
+ field('Delivery status',status);
+ const tracking=el('input');tracking.name='tracking';tracking.maxLength=200;tracking.value=order.tracking||'';field('Tracking reference (optional)',tracking);
+ const collected=el('input');collected.type='checkbox';collected.name='collected';
+ const collectionLabel=el('label','seller-order-check');collectionLabel.append(collected,el('span','',`I received the full cash payment of ${money(order.total_cents/100)}.`));
+ if(order.payment_status==='unpaid')form.append(collectionLabel);
+ const syncCollection=()=>{collected.disabled=order.payment_status!=='unpaid'||status.value!=='delivered';if(collected.disabled)collected.checked=false;};status.addEventListener('change',syncCollection);syncCollection();
+ form.append(el('p','seller-order-help','Confirm cash only after delivery and actual collection. Contact an Admin for cancellations.'));
+ const confirm=el('input');confirm.type='checkbox';confirm.required=true;
+ const confirmLabel=el('label','seller-order-check');confirmLabel.append(confirm,el('span','','I confirm these order details are correct.'));form.append(confirmLabel);
+ const error=el('p','form-error');error.hidden=true;error.setAttribute('role','alert');form.append(error);
+ const controls=el('div','seller-order-controls'),cancel=el('button','','Cancel'),refresh=el('button','','Refresh orders'),save=el('button','primary-button','Save changes');
+ cancel.type=refresh.type='button';save.type='submit';refresh.hidden=true;
+ cancel.addEventListener('click',()=>dialog.close());refresh.addEventListener('click',()=>{dialog.close();orders(page);});controls.append(cancel,refresh,save);form.append(controls);
+ dialog.addEventListener('cancel',event=>{if(busy)event.preventDefault();});dialog.addEventListener('close',()=>dialog.remove());
+ form.addEventListener('submit',async event=>{event.preventDefault();if(busy||!form.reportValidity())return;
+  const input={id:order.id,expected:order.status,expectedPayment:order.payment_status,status:status.value,tracking:tracking.value.trim(),collected:collected.checked};
+  busy=true;error.hidden=true;form.setAttribute('aria-busy','true');for(const node of form.elements)node.disabled=true;save.textContent='Saving...';
+  try{await Store.request('/seller/cod-order','POST',input);dialog.close();await orders(page);toast('Order updated.');}
+  catch(failure){error.textContent=failure.message;error.hidden=false;refresh.hidden=false;}
+  finally{busy=false;form.removeAttribute('aria-busy');for(const node of form.elements)node.disabled=false;syncCollection();save.textContent='Save changes';}
+ });
+ dialog.append(form);document.body.append(dialog);dialog.showModal();
 }
 function settings(){
  for(const field of ['name','tagline','description','email','phone','location'])$('#store-'+field).value=sellerStore.profile[field]||'';

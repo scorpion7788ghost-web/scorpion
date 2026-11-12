@@ -29,6 +29,8 @@ checkout_orders = {}
 checkout_calls = []
 checkout_fail_before = False
 checkout_lose_response = False
+seller_order_saves = []
+seller_order_fail = False
 
 class Handler(SimpleHTTPRequestHandler):
  def log_message(self,*args): pass
@@ -77,6 +79,12 @@ class Handler(SimpleHTTPRequestHandler):
   now=datetime.now(timezone.utc).isoformat();row=dict(id=key,productId=body['productId'],rating=body['rating'],title=body['title'],body=body['body'],name='QA Buyer',isMine=True,verifiedPurchase=True,createdAt=review_rows.get(key,{}).get('createdAt',now),updatedAt=now)
   review_rows[key]=row;return self.reply(row)
  def do_POST(self):
+  if self.path=='/api/seller/cod-order':
+   body=json.loads(self.rfile.read(int(self.headers['Content-Length'])));seller_order_saves.append(body)
+   if seller_order_fail:
+    self.send_response(503);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(b'{"error":"Isolated order update failure"}');return
+   order=next(o for receipt in checkout_orders.values() for o in receipt['orders'] if o['id']==body['id'])
+   order.update(status=body['status'],tracking=body['tracking'],payment_status='paid' if body['collected'] else order['payment_status']);return self.reply(dict(ok=True))
   if not self.path.startswith('/api/checkout/'):return self.review_write('POST')
   body=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
   if self.path=='/api/checkout/quote':
@@ -306,6 +314,42 @@ try:
   call('Emulation.setDeviceMetricsOverride',dict(width=width,height=1050,deviceScaleFactor=1,mobile=width<640));time.sleep(.1)
   assert js('document.documentElement.scrollWidth<=innerWidth'),f'Seller orders overflow at {width}'
  print('PASS: Seller Site loads COD order items, unpaid status, delivery information, pagination and responsive table.')
+ # Seller fulfillment controls; database tests separately verify authorization.
+ def open_order():
+  js("document.querySelector('#order-rows .table-actions button').click()")
+  wait("document.querySelector('.seller-order-dialog[open]')!==null")
+ open_order()
+ assert js("document.querySelector('[name=collected]').disabled")
+ assert js("[...document.querySelector('[name=status]').options].map(o=>o.value)")==['pending','processing']
+ js("document.querySelector('.seller-order-dialog form').requestSubmit()")
+ assert not seller_order_saves,'Confirmation must be required'
+ for width in [1440,768,390,320]:
+  call('Emulation.setDeviceMetricsOverride',dict(width=width,height=950,deviceScaleFactor=1,mobile=width<640));time.sleep(.1)
+  assert js('document.documentElement.scrollWidth<=innerWidth'),f'Seller dialog page overflow at {width}'
+  assert js("document.querySelector('.seller-order-dialog').scrollWidth<=document.querySelector('.seller-order-dialog').clientWidth"),f'Dialog content overflow at {width}'
+  if width in [1440,390]:shot(f'seller-order-{width}.png')
+ js("document.querySelector('[name=status]').value='processing';document.querySelector('[name=tracking]').value='LOCAL-TRACK';document.querySelector('.seller-order-check input[required]').checked=true")
+ seller_order_fail=True
+ js("document.querySelector('.seller-order-dialog form').requestSubmit()")
+ wait("document.querySelector('.seller-order-dialog .form-error').textContent==='Isolated order update failure'")
+ assert js("document.querySelector('[name=tracking]').value")=='LOCAL-TRACK'
+ seller_order_fail=False;before=len(seller_order_saves)
+ js("document.querySelector('.seller-order-dialog form').requestSubmit();document.querySelector('.seller-order-dialog form').requestSubmit()")
+ wait("!document.querySelector('.seller-order-dialog') && document.querySelector('#order-rows').textContent.includes('processing')")
+ assert len(seller_order_saves)==before+1,'One request despite double submission'
+ for status in ['shipped','delivered']:
+  open_order()
+  js("document.querySelector('[name=status]').value="+json.dumps(status)+";document.querySelector('[name=status]').dispatchEvent(new Event('change'));document.querySelector('.seller-order-check input[required]').checked=true")
+  if status=='delivered':
+   assert not js("document.querySelector('[name=collected]').disabled")
+   js("document.querySelector('[name=collected]').checked=true")
+  js("document.querySelector('.seller-order-dialog form').requestSubmit()")
+  wait("!document.querySelector('.seller-order-dialog') && document.querySelector('#order-rows').textContent.includes("+json.dumps(status)+")")
+ visit('seller-site/orders.html');js('window.sellerReady')
+ wait("document.querySelector('#order-rows').textContent.includes('delivered - paid')")
+ open_order();assert not js("!!document.querySelector('[name=collected]')"),'Collected payment cannot be reversed in UI'
+ js("document.querySelector('.seller-order-dialog').close()")
+ print('PASS: Seller fulfillment, collection, confirmation validation, failed-save retention, duplicate prevention, persisted reload and responsive dialog.')
  visit('seller-site/dashboard.html');js('window.sellerReady')
  wait("document.querySelector('#dashboard-stats').lastElementChild.querySelector('strong').textContent==='1'")
  assert not errors,errors

@@ -50,11 +50,27 @@ const {PGlite}=require('../.qa/pglite/package/dist/index.cjs');
   let ord=receipt.orders[0];
   const manage=(who,status,collected=false,reason='')=>run(who,'lk_cod_manage',[{id:ord.id,expected:ord.status,expectedPayment:ord.payment_status,status,collected,reason,tracking:'TEST'}]);
   await assert.rejects(manage(buyer,'processing'));await assert.rejects(manage(seller,'processing'));
+  const sellerManage=(who,status,collected=false,extra={})=>run(who,'lk_seller_cod_manage',[{id:ord.id,expected:ord.status,expectedPayment:ord.payment_status,status,collected,tracking:'SELLER-TRACK',...extra}]);
+  await account(6,'seller','secondseller');const secondSeller=id(6);await rpc(owner,'public.lk_approve_seller($1)',[secondSeller]);
+  for(const who of [buyer,worker,secondSeller,owner])await assert.rejects(sellerManage(who,'processing'),'Seller endpoint restricts even Admins to their own orders');
+  await assert.rejects(rpc(seller,'lk_private.cod_manage($1,false)',[{id:ord.id}]),'Private helper is not callable');
+  await assert.rejects(sellerManage(seller,'cancelled',false,{reason:'Not allowed'}));
+  await assert.rejects(sellerManage(seller,'delivered',true));
+  await assert.rejects(sellerManage(seller,'processing',true));
+  for(const update of ["account_active=false","verification_status='pending'"]){
+   await db.query('update lk_profiles set '+update+' where auth_id=$1',[seller]);await assert.rejects(sellerManage(seller,'processing'));
+   await db.query("update lk_profiles set account_active=true,verification_status='approved' where auth_id=$1",[seller]);
+  }
   await assert.rejects(manage(owner,'delivered',true));
-  await manage(owner,'processing');ord.status='processing';await manage(owner,'shipped');ord.status='shipped';await manage(owner,'delivered');ord.status='delivered';
+  await sellerManage(seller,'processing');
+  await assert.rejects(sellerManage(seller,'processing'),/changed/,'Repeated stale submission is rejected');
+  ord.status='processing';await sellerManage(seller,'shipped');ord.status='shipped';await sellerManage(seller,'delivered');ord.status='delivered';
   assert.equal((await run(buyer,'lk_checkout_details',[q.id])).orders[0].payment_status,'unpaid');
-  await manage(owner,'delivered',true);ord.payment_status='paid';
+  await sellerManage(seller,'delivered',true);ord.payment_status='paid';
+  await sellerManage(seller,'delivered',false); // An update cannot reverse collected payment.
   assert.equal((await run(buyer,'lk_checkout_details',[q.id])).orders[0].payment_status,'paid');
+  assert.equal((await run(buyer,'lk_checkout_details',[q.id])).orders[0].tracking,'SELLER-TRACK');
+  assert((await db.query("select 1 from lk_admin_events where actor_id=$1 and action='cod-order-updated' and entity_id=$2",[seller,ord.id])).rows.length>0,'Seller actions are audited');
   assert.equal((await run(buyer,'lk_product_review_list',[p.id,'newest',1])).canReview,true,'Collected COD verifies the correct buyer and product');
   await db.query("update lk_console_settings set moderation_required=false");
   await cart(other,{[p.id]:1});const q2=await quote(other);const r2=await place(other,q2);ord=r2.orders[0];
