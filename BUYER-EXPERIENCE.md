@@ -61,3 +61,10 @@ Run `tests/product-reviews-database.test.cjs` for isolated PostgreSQL validation
 Use Node.js to run `tests/marketplace.test.cjs`, `tests/buyer-experience-database.test.cjs`, `tests/supabase-store.test.cjs`, `tests/profile-theme.test.cjs`, `tests/search-navigation.test.cjs`, and `tests/storefront-flows.test.cjs`. The database test uses the existing isolated PGlite setup; no live accounts are required.
 
 `python tests/marketplace-browser.test.py` uses headless Chrome plus Python's `websocket-client` package. Set `BROWSER_EXECUTABLE` if Chrome is installed elsewhere. It serves in-memory fixtures on localhost, writes screenshots under `.qa`, and checks responsive widths, themes, search, wishlist failure recovery, cart, notifications, orders, deals and product navigation. These fixtures never reach Supabase or published assets.
+
+
+## Homepage collections
+
+Run `supabase/homepage-collections.sql` after the existing Admin Console setup. This additive, read-only RPC returns only product IDs for Best Sellers (paid, non-cancelled, non-refunded order quantities) and Trending Products (the same rules over the last 30 days). It excludes unavailable products and unapproved sellers, requires an active approved Buyer or Admin, and exposes no customer details, order IDs, or sales amounts. No new tables or sample data are created. Until activated, these sections show a retry state without blocking the homepage.
+
+Flash Deals uses real original/compare-at prices higher than current prices; no countdowns are invented. Popular Brands uses the catalog's actual brand fields, ordered by listing counts, with links to filtered results. The cart preview uses the existing cart and an estimated merchandise subtotal; exact delivery and COD settlement totals remain at checkout. Benefits copy does not promise universal warranty coverage or unsupported online payments.

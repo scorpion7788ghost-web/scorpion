@@ -128,6 +128,7 @@
   if(path==='/admin/console'&&method==='POST')return rpc('lk_admin_console',{section:data.section,filters:data.filters||{}});
   if(path==='/admin/command'&&method==='POST')return rpc('lk_admin_command',{action:data.action,input:data.input});
   if(path==='/notifications'&&method==='GET')return rpc('lk_notifications',{});
+  if(path==='/homepage/collections'&&method==='GET')return rpc('lk_homepage_collections',{});
   if(path==='/checkout/delivery'&&method==='GET')return rpc('lk_delivery_options',{});
   if(path==='/checkout/quote'&&method==='POST')return rpc('lk_checkout_quote',{district_name:data.district});
   if(path==='/checkout/place'&&method==='POST')return rpc('lk_checkout_place',{checkout_key:data.id,delivery:data.delivery});

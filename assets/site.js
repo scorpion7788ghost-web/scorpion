@@ -39,7 +39,7 @@ async function saveCart(){
  catch(error){storageAvailable=false;if(customerId)cart=sanitizeCart(Store.getCart());updateCartCount();toast(error.message||'The cart could not be saved.');return false;}
 }
 function cartCount(){return Object.values(cart).reduce((total,count)=>total+count,0);}
-function updateCartCount(){$('#cart-count').textContent=cartCount();$('#cart-count').setAttribute('aria-label',`${cartCount()} items in cart`);}
+function updateCartCount(){$('#cart-count').textContent=cartCount();$('#cart-count').setAttribute('aria-label',`${cartCount()} items in cart`);window.dispatchEvent(new CustomEvent('lk-cart-change'));}
 function createCard(product,isNew=false){
   const li=document.createElement('li');li.className='product-card';
   const button=document.createElement('a');button.href=`product.html?id=${encodeURIComponent(product.id)}`;button.className='product-open';button.setAttribute('aria-label',`View ${product.name}, ${money(product.price)}`);
@@ -84,6 +84,7 @@ function renderRecommendations(){
   $('#empty-state p').textContent=products.length?'Choose another category to explore the collection.':'Products will appear here after sellers publish them.';
   $('#search-status').textContent=selectedCategory==='All'?'':`${matches.length} products in ${selectedCategory}`;
   updateArrows(shelf);
+  window.dispatchEvent(new CustomEvent('lk-category-change',{detail:{category:selectedCategory}}));
 }
 function initializeHome(){
   const notice=element('p','notice-text','No newly added products in this category yet.');notice.id='new-products-empty';$('#new-products').after(notice);

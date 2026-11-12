@@ -31,6 +31,7 @@ checkout_fail_before = False
 checkout_lose_response = False
 seller_order_saves = []
 seller_order_fail = False
+ranking_fail = False
 
 class Handler(SimpleHTTPRequestHandler):
  def log_message(self,*args): pass
@@ -59,6 +60,10 @@ class Handler(SimpleHTTPRequestHandler):
   if path=='/api/wishlist':return self.reply(list(saved))
   if path=='/api/my/orders':return self.reply(dict(orders=[dict(id='qa_order',items=[dict(name=products[0]['name'],quantity=1)],total_cents=7900,currency='USD',status='processing',payment_status='paid',tracking='',seller_name='QA Store',created_at='2026-11-01T00:00:00Z')],total=1))
   if path=='/api/notifications':return self.reply([dict(title='QA announcement',body='Isolated notification check',created_at='2026-11-01T00:00:00Z')])
+  if path=='/api/homepage/collections':
+   if ranking_fail:
+    self.send_response(503);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(b'{"error":"Isolated ranking failure"}');return
+   return self.reply(dict(bestSellers=['qa_0','qa_2'],trending=['qa_2','qa_1']))
   return super().do_GET()
  def do_PUT(self):
   body=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
@@ -153,7 +158,15 @@ try:
  visit('index.html');wait("document.querySelectorAll('#recommended-products .product-card').length===6")
  assert js("document.querySelectorAll('#hero-dots button').length") == 4
  assert 'LKR' in js("document.querySelector('.product-price').textContent")
- assert js("document.querySelectorAll('.product-art.image-loaded').length") == 12
+ assert js("document.querySelectorAll('#new-products .product-art.image-loaded,#recommended-products .product-art.image-loaded').length") == 12
+ wait("document.querySelectorAll('#best-products .product-card').length===2")
+ assert js("document.querySelectorAll('#flash-products .product-card').length")==1
+ assert js("document.querySelector('#trending-products .product-open').getAttribute('href')")=='product.html?id=qa_2'
+ assert js("document.querySelector('#home-brands a').getAttribute('href')")=='search.html?brand=brand%3Aqa'
+ js("document.querySelector('#cart-preview-toggle').click()")
+ assert not js("document.querySelector('#cart-preview').hidden")
+ assert js("document.querySelector('#cart-preview-checkout').hidden")
+ js("document.querySelector('#cart-preview-close').click()")
  shot('market-desktop.png')
  first_slide=js("document.querySelector('#hero-product-name').textContent");time.sleep(6.7)
  assert js("document.querySelector('#hero-product-name').textContent")!=first_slide
@@ -201,6 +214,19 @@ try:
  js("document.querySelector('.card-add').click()")
  wait("document.querySelector('#cart-count').textContent==='1'")
  assert cart=={'qa_0':1}
+ js("document.querySelector('#cart-preview-toggle').click()")
+ assert js("document.querySelectorAll('.cart-preview-item').length")==1
+ assert '23,700.00' in js("document.querySelector('#cart-preview-total').textContent")
+ assert not js("document.querySelector('#cart-preview-checkout').hidden")
+ for width in [1440,768,390,320]:
+  call('Emulation.setDeviceMetricsOverride',dict(width=width,height=900,deviceScaleFactor=1,mobile=width<640));time.sleep(.1)
+  assert js("(()=>{const r=document.querySelector('#cart-preview').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth})()"),'Cart preview overflow'
+ js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}))")
+ assert js("document.querySelector('#cart-preview').hidden")
+ ranking_fail=True;visit('index.html')
+ wait("document.querySelector('#best-empty .collection-retry')!==null")
+ ranking_fail=False;js("document.querySelector('#best-empty .collection-retry').click()")
+ wait("document.querySelectorAll('#best-products .product-card').length===2")
  js("document.querySelector('#header-notifications').click()")
  wait("document.querySelector('#profile-notifications')?.textContent.includes('QA announcement')")
  js("document.querySelector('#profile-notifications').close();StoreTheme.apply('white-light')")

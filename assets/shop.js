@@ -86,6 +86,52 @@
   document.addEventListener('visibilitychange',schedule);reduced.addEventListener?.('change',()=>{if(reduced.matches){paused=true;transition?.cancel();}syncPause();});
   window.addEventListener('pagehide',()=>{clearTimeout(timer);transition?.cancel();});window.addEventListener('pageshow',schedule);syncPause();
  }
+ function homepage(){
+  if(!document.body.classList.contains('premium-home'))return;
+  const catalog=window.products||[];let category='All',rankings=null,loading=false;
+  function shelf(key,items,empty){
+   const list=$('#'+key+'-products'),message=$('#'+key+'-empty');
+   const selected=items.filter(p=>matchesCollection(p,category)).slice(0,12);
+   list.replaceChildren(...selected.map(p=>window.createCard(p)));list.hidden=!selected.length;list.scrollLeft=0;
+   message.textContent=selected.length?'':category==='All'?empty:'No matching products in this category yet.';message.hidden=selected.length>0;
+   list.setAttribute('aria-busy','false');window.updateArrows?.(list);
+  }
+  function render(){
+   shelf('flash',catalog.filter(p=>offer(p)).sort((a,b)=>offer(b).percent-offer(a).percent),'No current markdowns. Explore new arrivals while our sellers prepare their next offers.');
+   if(rankings){const byId=new Map(catalog.map(p=>[p.id,p]));
+    shelf('best',rankings.bestSellers.map(id=>byId.get(id)).filter(Boolean),'Customer favorites will appear as paid purchases are completed.');
+    shelf('trending',rankings.trending.map(id=>byId.get(id)).filter(Boolean),'There are no qualifying purchases from the last 30 days yet.');
+   }
+  }
+  async function loadRankings(){
+   if(loading)return;loading=true;
+   for(const key of ['best','trending']){$('#'+key+'-empty').hidden=false;$('#'+key+'-empty').textContent='Finding customer favorites…';$('#'+key+'-products').setAttribute('aria-busy','true');}
+   try{const result=await Store.request('/homepage/collections');if(!Array.isArray(result.bestSellers)||!Array.isArray(result.trending))throw Error('Invalid rankings');rankings=result;render();}
+   catch{for(const key of ['best','trending']){const message=$('#'+key+'-empty');message.replaceChildren(node('span','These picks are temporarily unavailable. '));const retry=node('button','Try again','collection-retry');retry.addEventListener('click',loadRankings);message.append(retry);$('#'+key+'-products').setAttribute('aria-busy','false');}}
+   finally{loading=false;}
+  }
+  window.addEventListener('lk-category-change',event=>{category=event.detail.category;render();});render();loadRankings();
+  const brands=new Map();for(const p of catalog){const label=productBrand(p);if(!label)continue;const key=productBrandKey(p);const row=brands.get(key)||{label,count:0};row.count++;brands.set(key,row);}
+  const brandHost=$('#home-brands');
+  for(const [key,brand] of [...brands].sort((a,b)=>b[1].count-a[1].count||a[1].label.localeCompare(b[1].label)).slice(0,12)){
+   const link=node('a','','home-brand');link.href='search.html?brand='+encodeURIComponent(key);link.append(node('strong',brand.label),node('span',brand.count+' product'+(brand.count===1?'':'s')+' ↗'));brandHost.append(link);
+  }
+  if(!brands.size)brandHost.append(node('p','Brands will appear as sellers add brand details to their products.','collection-empty'));
+  const toggle=$('#cart-preview-toggle'),panel=$('#cart-preview'),close=$('#cart-preview-close');
+  function renderCartPreview(){
+   const cart=Store.getCart(),items=catalog.filter(p=>Number.isInteger(cart[p.id])&&cart[p.id]>0),host=$('#cart-preview-items');host.replaceChildren();
+   let total=0;for(const p of items)total+=p.price*cart[p.id];
+   for(const p of items.slice(0,4)){const link=node('a','','cart-preview-item');link.href='product.html?id='+encodeURIComponent(p.id);const image=node('img');image.src=productImage(p);image.alt='';image.width=48;image.height=48;image.loading='lazy';const text=node('span');text.append(node('strong',p.name),node('small',cart[p.id]+' × '+price(p.price)));link.append(image,text);host.append(link);}
+   if(!items.length)host.append(node('p','Your cart is ready for your next upgrade.','collection-empty'));
+   if(items.length>4)host.append(node('p','And '+(items.length-4)+' more products in your cart.','cart-preview-note'));
+   $('#cart-preview-total').textContent=items.length?'Estimated subtotal: '+price(total):'';$('#cart-preview-checkout').hidden=!items.length;
+  }
+  function setOpen(open){panel.hidden=!open;toggle.setAttribute('aria-expanded',String(open));if(open)renderCartPreview();}
+  toggle.addEventListener('click',()=>setOpen(panel.hidden));close.addEventListener('click',()=>{setOpen(false);toggle.focus();});
+  document.addEventListener('click',event=>{if(!event.target.closest('.cart-preview-wrap'))setOpen(false);});
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!panel.hidden){setOpen(false);toggle.focus();}});
+  window.addEventListener('lk-cart-change',()=>{if(!panel.hidden)renderCartPreview();});
+ }
  window.Shop={collections,collectionFor,categoryKey,matchesCollection,offer,recommend,recordView,decorateCard,quickView};
  window.addEventListener('DOMContentLoaded',async()=>{
   await window.customerReady;if(Store.accessReady&&!(await Store.accessReady))return;
@@ -94,7 +140,7 @@
   $('#header-notifications')?.addEventListener('click',()=>window.StoreProfile.openNotifications());
   document.addEventListener('keydown',event=>{if(event.key==='Escape'){all('.shop-dropdown[open]').forEach(el=>el.removeAttribute('open'));if(menu){menu.setAttribute('aria-expanded','false');nav.classList.remove('mobile-open');}}});
   document.addEventListener('click',event=>all('.shop-dropdown[open]').forEach(el=>{if(!el.contains(event.target))el.removeAttribute('open');}));
-  hero();const current=new URLSearchParams(location.search).get('id');if(document.body.dataset.page==='product'){const p=(window.products||[]).find(p=>p.id===current);if(p)recordView(p);}
+  hero();homepage();const current=new URLSearchParams(location.search).get('id');if(document.body.dataset.page==='product'){const p=(window.products||[]).find(p=>p.id===current);if(p)recordView(p);}
   if(document.body.dataset.page==='wishlist')await wishlistPage();else loadWishlist().catch(()=>{});
   if(document.body.dataset.page==='orders')await ordersPage();
  });
