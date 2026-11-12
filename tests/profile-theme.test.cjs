@@ -28,7 +28,7 @@ async function main(){
  p.choices.children[2].handlers.click();assert.equal(p.context.StoreTheme.current(),'black-dark');assert.equal(p.context.document.documentElement.style.colorScheme,'dark');
  p.choices.children[3].handlers.click();assert.equal(p.context.StoreTheme.current(),'white-light');assert.equal(p.context.document.documentElement.style.colorScheme,'light');
  p.context.StoreProfile.mount({name:'Buyer',email:'scorpion@customer.lk-store.invalid'});
- assert.deepEqual(p.links().map(l=>l[0]),['My Account','My Orders','Wishlist','Become a Seller'],'An email/name match cannot grant administrator UI');
+ assert.deepEqual(p.links().map(l=>l[0]),['My Account','My Orders','Wishlist','My Comparisons','Recently Viewed','Become a Seller'],'An email/name match cannot grant administrator UI');
  p.context.StoreProfile.mount({name:'Scorpion'},{isAdmin:true});assert.equal(p.links().at(-1)[0],'Admin Panel');
  p.nodes.get('profile-toggle').handlers.click();assert.equal(p.nodes.get('profile-dropdown').hidden,false);
  p.documentEvents.keydown({key:'Escape',preventDefault(){}});assert.equal(p.nodes.get('profile-dropdown').hidden,true);assert.equal(p.nodes.get('profile-toggle').focused,true);

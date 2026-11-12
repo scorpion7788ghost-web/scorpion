@@ -167,6 +167,28 @@ try:
  assert not js("document.querySelector('#cart-preview').hidden")
  assert js("document.querySelector('#cart-preview-checkout').hidden")
  js("document.querySelector('#cart-preview-close').click()")
+ # Comparison uses real catalog objects, with local-only same-category test items.
+ js("window.products.push({...window.products[0],id:'compare_audio',name:'Second Audio Product',specifications:{Battery:'20 hours'}});window.products[0].specifications={Battery:'10 hours'}")
+ js("document.querySelector('#new-products .compare-toggle').click(); Shop.changeComparison(window.products.find(p=>p.id==='compare_audio'));Shop.openComparison()")
+ assert js("document.querySelector('#product-comparison').open")
+ assert js("document.querySelectorAll('.comparison-table thead th').length")==3
+ assert 'Battery' in js("document.querySelector('.comparison-table').textContent")
+ assert js("document.querySelectorAll('.comparison-difference').length")>=1
+ for width in [1440,768,390,320]:
+  call('Emulation.setDeviceMetricsOverride',dict(width=width,height=1050,deviceScaleFactor=1,mobile=width<640))
+  assert js("document.documentElement.scrollWidth<=innerWidth"),'Comparison page overflow'
+  assert js("document.querySelector('#product-comparison').getBoundingClientRect().right<=innerWidth"),'Dialog overflow'
+ js("document.querySelector('.comparison-table button').click()")
+ assert js("Shop.comparisonItems().length")==1
+ js("document.querySelector('#product-comparison>.secondary-button').click()")
+ assert js("Shop.comparisonItems().length")==0
+ js("document.querySelector('#product-comparison').close();Shop.recordView(window.products[0]);Shop.openRecentlyViewed()")
+ assert js("document.querySelectorAll('#recently-viewed .product-card').length")==1
+ js("document.querySelector('#recently-viewed>.secondary-button').click()")
+ assert js("document.querySelectorAll('#recently-viewed .product-card').length")==0
+ js("document.querySelector('#recently-viewed').close();window.products.splice(window.products.findIndex(p=>p.id==='compare_audio'),1)")
+ call('Emulation.setDeviceMetricsOverride',dict(width=1440,height=1050,deviceScaleFactor=1,mobile=False))
+ print('PASS: comparison table, actual specifications, difference highlighting, removal, clear and responsive dialogs; recently viewed and clear history.')
  shot('market-desktop.png')
  first_slide=js("document.querySelector('#hero-product-name').textContent");time.sleep(6.7)
  assert js("document.querySelector('#hero-product-name').textContent")!=first_slide

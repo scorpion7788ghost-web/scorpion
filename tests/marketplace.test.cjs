@@ -32,6 +32,18 @@ async function main(){
  shop.recordView(items[1]);assert.equal(shop.recommend(items)[0].id,'audio');assert.equal(items[0].id,'laptop','Do not mutate catalog order');
  user.id='buyer_b';assert.equal(shop.recommend(items)[0].id,'laptop','History must not leak between accounts on a shared browser');
  storage.set('lk-buyer-views-v1:buyer_b','invalid json');assert.equal(shop.recommend(items).length,3);
+ const audioProducts=Array.from({length:5},(_,i)=>({id:'sound_'+i,category:'Audio',name:'Speaker '+i,price:20,stock:5}));context.window.products=[...items,...audioProducts];
+ assert.equal(shop.changeComparison(audioProducts[0]),'');
+ assert.equal(shop.changeComparison(audioProducts[1]),'');
+ assert.match(shop.changeComparison(items[0]),/same category/);
+ assert.equal(shop.changeComparison(audioProducts[2]),'');assert.equal(shop.changeComparison(audioProducts[3]),'');
+ assert.match(shop.changeComparison(audioProducts[4]),/four products/);assert.equal(shop.comparisonItems().length,4);
+ assert.equal(shop.changeComparison(audioProducts[0]),'');assert.equal(shop.comparisonItems().length,3);
+ user.id='different_buyer';assert.equal(shop.comparisonItems().length,0,'Comparison must be isolated per account');
+ storage.set('lk-buyer-compare-v1:different_buyer','["sound_1","sound_1",123,"missing"]');assert.equal(shop.comparisonItems().length,1,'Invalid, duplicate and unavailable IDs excluded');
+ storage.set('lk-buyer-compare-v1:different_buyer','{broken');assert.equal(shop.comparisonItems().length,0);
+ context.localStorage.setItem=()=>{throw Error('blocked');};assert.match(shop.changeComparison(audioProducts[0]),/unavailable/);
+ console.log('PASS: comparison category checks, four-item limit, removal, account isolation, malformed storage and unavailable product handling.');
  console.log('PASS: validated LKR conversion, cache/failure/expiry/blocked-storage behavior, real discounts, collection inference and account-isolated recommendations.');
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

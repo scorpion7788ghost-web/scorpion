@@ -47,7 +47,10 @@
   const links=get('profile-links');links.replaceChildren();
   if(user){
    links.append(link('My Account',role==='seller'?seller('account.html'):buyer(role==='worker'?'worker-account.html':'account.html')));
-   if(role==='customer'&&access!=='admin'){links.append(link('My Orders',buyer('orders.html')),link('Wishlist',buyer('wishlist.html')));}
+   if(role==='customer'&&access!=='admin'){
+    links.append(link('My Orders',buyer('orders.html')),link('Wishlist',buyer('wishlist.html')));
+    for(const [label,tool,method] of [['My Comparisons','compare','openComparison'],['Recently Viewed','recent','openRecentlyViewed']]){const entry=link(label,buyer('search.html?tool='+tool));entry.addEventListener('click',event=>{if(window.Shop?.[method]){event.preventDefault();close();window.Shop[method]();}});links.append(entry);}
+   }
    for(const [label,url] of destinations(user,status.isAdmin===true))links.append(link(label,url));
    if(window.StoreCloud?.enabled){const notifications=document.createElement('button');notifications.type='button';notifications.textContent='Notifications';notifications.addEventListener('click',openNotifications);links.append(notifications);}
   }else links.append(link('Sign In',role==='seller'?seller('login.html'):buyer(role==='worker'?'worker-login.html':'login.html')));

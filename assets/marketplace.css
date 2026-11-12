@@ -188,3 +188,21 @@ html[data-theme="plum-dark"] .premium-home,html[data-theme="ocean-dark"] .premiu
 @media(max-width:640px){.premium-home h2>span{color:var(--accent)}
 .premium-home .home-intro{font-size:7px;letter-spacing:.8px;padding-top:18px}.home-intro a{font-size:9px}.premium-home .tech-hero{min-height:0;margin-top:14px;border-radius:18px}.premium-home .hero-copy{padding-top:30px}.premium-home .tech-hero h1{font-size:40px;letter-spacing:-1.6px}.premium-home .hero-subtitle{font-size:12px}.premium-home .hero-visual{padding-top:24px}.premium-home .hero-product-caption strong{font-size:20px}.premium-home .hero-footnote{font-size:9px}.premium-home .category-section{padding-top:28px}.category-heading h2{font-size:20px}.category-heading a{font-size:9px;white-space:nowrap}.premium-home .category-tile{min-height:90px;font-size:9px}.premium-home .product-section,.premium-home .brands-section{padding-top:32px}.premium-home .section-top h2,.premium-home .brands-section h2,.premium-home .benefits-section h2{font-size:25px}.premium-home .section-top{gap:12px;align-items:flex-start}.premium-home .section-description{font-size:11px}.collection-link{display:none}.premium-home .product-card{padding:10px;border-radius:12px}.premium-home .product-title-line h3{font-size:12px}.premium-home .product-price{font-size:17px}.premium-home .card-view,.premium-home .card-add{font-size:9px}.brand-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.home-brand{padding:20px 12px}.benefits-section{margin-top:32px;padding:30px 0 36px}.benefits-grid{gap:24px 16px}.benefits-grid article{padding-left:12px}.benefits-grid h3{font-size:13px}.benefits-grid p{font-size:11px}.premium-footer-grid{padding:32px 16px;gap:28px 16px;grid-template-columns:repeat(2,minmax(0,1fr))}.premium-footer-bottom{margin-inline:16px;flex-wrap:wrap;gap:12px}.premium-footer-bottom p{width:100%}.premium-home .market-tools{gap:8px}.premium-home .brand{font-size:17px}.cart-preview{right:16px;padding:18px}.cart-preview-wrap{margin-left:-6px}#cart-preview-toggle{min-width:20px}}
 @media(prefers-reduced-motion:reduce){.premium-home .category-tile:hover{transform:none}}
+/* Account-scoped buyer tools share the existing surfaces and controls. */
+.buyer-tools-dialog{width:min(1100px,calc(100% - 24px));max-height:88dvh;box-sizing:border-box;padding:clamp(16px,3vw,30px);border:1px solid var(--line,#293c4a);border-radius:20px;background:var(--panel,#13212b);color:var(--text,#edf6ff);overflow:auto;box-shadow:0 24px 80px #0006}
+.buyer-tools-dialog::backdrop{background:#020b13b8;backdrop-filter:blur(4px)}
+.buyer-tools-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}
+.buyer-tools-heading h2{font-size:clamp(22px,3vw,30px);margin:0}
+.buyer-tools-dialog .secondary-button{min-height:44px;margin-block:6px}
+.comparison-scroll{overflow:auto;margin-top:18px;border:1px solid var(--line,#293c4a);border-radius:12px}
+.comparison-table{border-collapse:collapse;width:100%;font-size:14px;text-align:left}
+.comparison-table caption{padding:12px;text-align:left}
+.comparison-table th,.comparison-table td{padding:16px;min-width:155px;border-bottom:1px solid var(--line,#293c4a);vertical-align:top;overflow-wrap:anywhere}
+.comparison-table th:first-child{min-width:110px}
+.comparison-table thead img{display:block;object-fit:contain;max-width:100%;margin:0 auto 12px}
+.comparison-table thead a{display:block;margin-bottom:10px;color:inherit}
+.comparison-table .comparison-difference{background:color-mix(in srgb,var(--accent,#68d6f5) 9%,transparent)}
+.recently-viewed-grid{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr));gap:20px}
+.recently-viewed-grid .product-card{min-width:0;width:auto}
+.card-actions .compare-toggle{width:100%;min-height:40px;font-size:12px}
+.compare-toggle[aria-pressed="true"]{border-color:var(--accent,#68d6f5)}

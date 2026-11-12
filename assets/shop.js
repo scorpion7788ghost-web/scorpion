@@ -24,6 +24,51 @@
  function activityKey(){return 'lk-buyer-views-v1:'+Store.auth.current('customer')?.id;}
  function history(){try{const value=JSON.parse(localStorage.getItem(activityKey())||'[]');return Array.isArray(value)?value.filter(id=>typeof id==='string').slice(0,40):[];}catch{return [];}}
  function recordView(product){try{localStorage.setItem(activityKey(),JSON.stringify([product.id,...history().filter(id=>id!==product.id)].slice(0,40)));}catch{}}
+ // Comparison stores only product IDs, scoped to the signed-in buyer on this device.
+ function comparisonKey(){return 'lk-buyer-compare-v1:'+Store.auth.current('customer')?.id;}
+ function comparisonIds(){try{const ids=JSON.parse(localStorage.getItem(comparisonKey())||'[]');return Array.isArray(ids)?[...new Set(ids.filter(id=>typeof id==='string'))].slice(0,4):[];}catch{return [];}}
+ function comparisonGroup(product){return collections.slice(1).find(name=>matchesCollection(product,name))||categoryKey(product.category);}
+ function comparisonItems(){return comparisonIds().map(id=>(window.products||[]).find(p=>p.id===id)).filter(Boolean);}
+ function changeComparison(product){
+  const items=comparisonItems(),selected=items.some(p=>p.id===product.id);
+  if(!selected&&items.length>=4)return 'Compare up to four products. Remove one first.';
+  if(!selected&&items.length&&comparisonGroup(items[0])!==comparisonGroup(product))return 'Choose products from the same category for a useful comparison.';
+  const ids=selected?items.filter(p=>p.id!==product.id).map(p=>p.id):[...items.map(p=>p.id),product.id];
+  try{localStorage.setItem(comparisonKey(),JSON.stringify(ids));return '';}catch{return 'Browser storage is unavailable. Your comparison could not be saved.';}
+ }
+ function syncComparison(){const ids=comparisonIds();all('.compare-toggle').forEach(button=>{const active=ids.includes(button.dataset.productId);button.setAttribute('aria-pressed',String(active));button.textContent=active?'Remove comparison':'Compare';});}
+ function comparisonButton(product){const button=node('button',comparisonIds().includes(product.id)?'Remove comparison':'Compare','secondary-button compare-toggle');button.type='button';button.dataset.productId=product.id;button.setAttribute('aria-pressed',String(comparisonIds().includes(product.id)));button.setAttribute('aria-label','Compare '+product.name);button.addEventListener('click',()=>{const error=changeComparison(product);syncComparison();notify(error||'Comparison updated. Open My Comparisons in your profile to view it.');});return button;}
+ function buyerDialog(id,title){
+  let dialog=$('#'+id);if(!dialog){dialog=node('dialog','','buyer-tools-dialog');dialog.id=id;document.body.append(dialog);}
+  dialog.replaceChildren();dialog.setAttribute('aria-labelledby',id+'-title');
+  const heading=node('h2',title);heading.id=id+'-title';const close=node('button','Close','secondary-button');close.type='button';close.addEventListener('click',()=>dialog.close());
+  const header=node('div','','buyer-tools-heading');header.append(heading,close);dialog.append(header);return dialog;
+ }
+ function openComparison(){
+  const dialog=buyerDialog('product-comparison','Compare products'),items=comparisonItems();
+  dialog.append(node('p','Choose 2–4 products in the same category. Saved on this device for your account.','section-description'));
+  const feedback=node('p','','form-error');feedback.setAttribute('role','status');dialog.append(feedback);
+  if(items.length<2)dialog.append(node('p','Add '+(2-items.length)+' more product'+(items.length?'':'s')+' using the Compare buttons to start.','collection-empty'));
+  if(items.length){
+   const clear=node('button','Clear comparison','secondary-button');clear.type='button';clear.addEventListener('click',()=>{try{localStorage.removeItem(comparisonKey());syncComparison();openComparison();}catch{feedback.textContent='Could not clear browser storage.';}});dialog.append(clear);
+   const wrap=node('div','','comparison-scroll');wrap.tabIndex=0;wrap.setAttribute('role','region');wrap.setAttribute('aria-label','Product comparison table; scroll horizontally for more products');
+   const table=node('table','','comparison-table'),caption=node('caption','Product features and current catalog prices');table.append(caption);
+   const head=node('thead'),row=node('tr');row.append(node('th','Product'));
+   for(const product of items){const cell=node('th');cell.scope='col';const image=node('img');image.src=productImage(product);image.alt=product.name;image.width=140;image.height=120;const link=node('a',product.name);link.href='product.html?id='+encodeURIComponent(product.id);const remove=node('button','Remove','secondary-button');remove.type='button';remove.setAttribute('aria-label','Remove '+product.name+' from comparison');remove.addEventListener('click',()=>{const error=changeComparison(product);if(error){feedback.textContent=error;return;}syncComparison();openComparison();});cell.append(image,link,remove);row.append(cell);}head.append(row);table.append(head);
+   const body=node('tbody'),rows=[['Price',p=>price(p.price)],['Brand',p=>productBrand(p)||'Not specified'],['Category',p=>p.category],['Availability',p=>p.stock>0?'In stock':'Out of stock'],['Warranty',p=>typeof p.warranty==='string'?p.warranty:'Not specified']];
+   const specs=p=>p.specifications&&typeof p.specifications==='object'&&!Array.isArray(p.specifications)?p.specifications:{};
+   const keys=[...new Set(items.flatMap(p=>Object.keys(specs(p))))].slice(0,40);
+   for(const key of keys)rows.push([key,p=>{const value=specs(p)[key];return ['string','number','boolean'].includes(typeof value)?String(value):'Not specified';}]);
+   for(const [label,value] of rows){const tr=node('tr'),values=items.map(value),th=node('th',label);th.scope='row';tr.append(th);if(items.length>1&&new Set(values).size>1)tr.className='comparison-difference';for(const text of values)tr.append(node('td',text));body.append(tr);}table.append(body);wrap.append(table);dialog.append(wrap,node('p','Highlighted rows have different values. Prices and availability are checked again at checkout.','section-description'));
+  }
+  if(!dialog.open)dialog.showModal();
+ }
+ function openRecentlyViewed(){
+  const dialog=buyerDialog('recently-viewed','Recently viewed'),items=history().map(id=>(window.products||[]).find(p=>p.id===id)).filter(Boolean);
+  dialog.append(node('p','Your browsing history on this device. Unavailable products are omitted.','section-description'));
+  if(items.length){const clear=node('button','Clear history','secondary-button');clear.type='button';clear.addEventListener('click',()=>{try{localStorage.removeItem(activityKey());openRecentlyViewed();}catch{notify('Browser storage could not be cleared.');}});const list=node('ul','','recently-viewed-grid');list.append(...items.map(p=>window.createCard(p)));dialog.append(clear,list);}else dialog.append(node('p','Products you view will appear here.','collection-empty'));
+  if(!dialog.open)dialog.showModal();
+ }
  function recommend(items){const viewed=history(),catalog=window.products||items,scores=new Map();viewed.forEach((id,index)=>{const p=catalog.find(p=>p.id===id);if(p)scores.set(p.category,(scores.get(p.category)||0)+(40-index));});return [...items].sort((a,b)=>(scores.get(b.category)||0)-(scores.get(a.category)||0));}
  function notify(text){const n=$('#toast');if(!n)return;n.textContent=text;n.classList.add('visible');clearTimeout(notify.timer);notify.timer=setTimeout(()=>n.classList.remove('visible'),4000);}
  function missing(error){return error.code==='PGRST202'?'This feature needs the Buyer experience database upgrade. Please contact the store owner.':error.message;}
@@ -44,6 +89,7 @@
   const ready=()=>art.classList.add('image-loaded');image.addEventListener('load',ready,{once:true});image.addEventListener('error',()=>{ready();image.src='assets/products/placeholder.svg';},{once:true});if(image.complete)ready();
   const wish=node('button','♡','wishlist-toggle');wish.type='button';wish.dataset.productId=product.id;wish.dataset.productName=product.name;wish.setAttribute('aria-pressed',String(saved.has(product.id)));wish.setAttribute('aria-label',(saved.has(product.id)?'Remove from':'Add to')+' wishlist: '+product.name);wish.addEventListener('click',()=>toggleWishlist(product));card.append(wish);
   const quick=node('button','Quick view','card-quick');quick.type='button';quick.setAttribute('aria-label','Quick view '+product.name);quick.addEventListener('click',()=>quickView(product));card.querySelector('.card-actions').append(quick);
+  card.querySelector('.card-actions').append(comparisonButton(product));
   const deal=offer(product);if(deal){const badge=node('span','−'+deal.percent+'%','discount-badge');card.querySelector('.product-art').append(badge);card.querySelector('.product-price').append(node('s',price(deal.original),'original-price'));}
   if(isNew)card.classList.add('is-new');if(saved.has(product.id))wish.classList.add('saved');
  }
@@ -132,7 +178,7 @@
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!panel.hidden){setOpen(false);toggle.focus();}});
   window.addEventListener('lk-cart-change',()=>{if(!panel.hidden)renderCartPreview();});
  }
- window.Shop={collections,collectionFor,categoryKey,matchesCollection,offer,recommend,recordView,decorateCard,quickView};
+ window.Shop={collections,collectionFor,categoryKey,matchesCollection,offer,recommend,recordView,decorateCard,quickView,comparisonIds,comparisonItems,changeComparison,openComparison,openRecentlyViewed};
  window.addEventListener('DOMContentLoaded',async()=>{
   await window.customerReady;if(Store.accessReady&&!(await Store.accessReady))return;
   const menu=$('#mobile-nav-toggle'),nav=$('#market-nav');menu?.addEventListener('click',()=>{const open=menu.getAttribute('aria-expanded')!=='true';menu.setAttribute('aria-expanded',String(open));nav.classList.toggle('mobile-open',open);});
@@ -143,5 +189,7 @@
   hero();homepage();const current=new URLSearchParams(location.search).get('id');if(document.body.dataset.page==='product'){const p=(window.products||[]).find(p=>p.id===current);if(p)recordView(p);}
   if(document.body.dataset.page==='wishlist')await wishlistPage();else loadWishlist().catch(()=>{});
   if(document.body.dataset.page==='orders')await ordersPage();
+  if(document.body.dataset.page==='product'){const product=(window.products||[]).find(p=>p.id===current);if(product){$('.single-product-copy')?.append(comparisonButton(product));}}
+  const tool=new URLSearchParams(location.search).get('tool');if(tool==='compare')openComparison();if(tool==='recent')openRecentlyViewed();
  });
 })();
