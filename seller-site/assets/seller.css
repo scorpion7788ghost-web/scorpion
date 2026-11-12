@@ -7,3 +7,13 @@ body{background:var(--palette-17131d,#17131d)}.seller-body{display:block}.seller
 .seller-body.auth-pending:before{content:"Connecting to your store...";display:block;padding:40px;color:var(--palette-b99cc9,#b99cc9);font:14px DM Sans,Arial,sans-serif}
 
 .seller-order-dialog{margin:auto;width:min(520px,calc(100% - 32px));max-height:calc(100dvh - 32px);overflow:auto;padding:28px;border:1px solid var(--line);border-radius:16px;background:var(--palette-1e1725,#1e1725);color:var(--text);box-shadow:0 24px 70px #0006}.seller-order-dialog::backdrop{background:#0009}.seller-order-dialog h2{font-size:24px}.seller-order-dialog p{font-size:12px;line-height:1.6;margin:14px 0}.seller-order-reference{overflow-wrap:anywhere;color:var(--accent)}.seller-order-check{display:flex;align-items:flex-start;gap:10px;font-size:12px;line-height:1.6;margin:16px 0}.seller-order-check input{margin-top:4px;accent-color:var(--lime)}.seller-order-help{color:var(--muted)}.seller-order-controls{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:16px;margin-top:24px}.seller-order-controls .primary-button{margin:0}.seller-order-controls button{font-size:12px}.seller-order-dialog button:disabled{opacity:.55;cursor:wait}
+
+/* Clear product-row actions, retaining native links and existing archive behavior. */
+#inventory-rows .table-actions a,#inventory-rows .table-actions button{display:inline-flex;align-items:center;justify-content:center;min-height:40px;min-width:64px;padding:8px 14px;margin-right:8px;border:1px solid var(--control-border);border-radius:8px;font-size:11px;font-weight:600;line-height:1.4;vertical-align:middle;box-shadow:0 2px 6px #0001;transition:background-color .2s,border-color .2s,box-shadow .2s}
+#inventory-rows .table-actions a{background:var(--seller-action);border-color:transparent;color:var(--action-ink)}
+#inventory-rows .table-actions button{background:var(--control-surface);color:var(--text)}
+#inventory-rows .table-actions a:hover{background:color-mix(in srgb,var(--seller-action) 88%,var(--text))}
+#inventory-rows .table-actions button:hover{background:var(--control-hover);border-color:var(--accent)}
+#inventory-rows .table-actions :last-child{margin-right:0}
+#inventory-rows .table-actions :focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+@media(pointer:coarse){#inventory-rows .table-actions a,#inventory-rows .table-actions button{min-height:44px}}
